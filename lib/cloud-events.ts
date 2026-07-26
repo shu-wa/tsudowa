@@ -1,14 +1,26 @@
 import { supabase } from '@/lib/supabase';
-import { AttendanceChoice, AvailabilityChoice, CollectionItem, EventDateTimeInput, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
+import { AttendanceChoice, AvailabilityChoice, ChatImageInput, CollectionItem, EventDateTimeInput, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
 
 export const isCloudId = (value?: string) => Boolean(value?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));
+const CHAT_MEDIA_BUCKET = 'chat-media';
+const MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
 
 type CloudProfile = { id: string; display_name: string; avatar_color: string };
 type CloudMember = { user_id: string; role: 'host' | 'cohost' | 'member'; status: string; attendance_label?: string; chat_read_at?: string; joined_at: string; profile?: CloudProfile };
 type CloudSchedule = { id: string; starts_at: string; title: string; note?: string; item_type: 'move' | 'activity' | 'food' | 'stay' };
 type CloudShare = { user_id: string; amount: number | string; paid: boolean; paid_at?: string };
 type CloudCollection = { id: string; title: string; category: CollectionItem['category']; paid_by_user_id: string; total_amount: number | string; split_method: CollectionItem['splitMethod']; due_date?: string; note?: string; shares?: CloudShare[] };
-type CloudMessage = { id: string; author_id: string; body: string; created_at: string; author?: CloudProfile };
+type CloudMessage = {
+  id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  image_path?: string;
+  image_mime_type?: string;
+  image_width?: number;
+  image_height?: number;
+  author?: CloudProfile;
+};
 type CloudCandidateVote = { user_id: string; choice: AvailabilityChoice };
 type CloudDateCandidate = { id: string; candidate_date: string; start_time: string; note?: string; votes?: CloudCandidateVote[] };
 type CloudEvent = {
@@ -36,7 +48,18 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
     date_candidates(*, votes:date_candidate_votes(*))
   `).order('start_date', { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as CloudEvent[]).map((event) => {
+  const cloudEvents = (data ?? []) as CloudEvent[];
+  const imagePaths = [...new Set(cloudEvents.flatMap((event) => (event.messages ?? []).map((message) => message.image_path).filter((path): path is string => Boolean(path))))];
+  const signedImageUrls = new Map<string, string>();
+  if (imagePaths.length) {
+    const { data: signedData, error: signedError } = await supabase.storage.from(CHAT_MEDIA_BUCKET).createSignedUrls(imagePaths, 60 * 60);
+    if (!signedError) {
+      for (const signed of signedData ?? []) {
+        if (signed.path && signed.signedUrl) signedImageUrls.set(signed.path, signed.signedUrl);
+      }
+    }
+  }
+  return cloudEvents.map((event) => {
     const members = (event.members ?? []).filter((member) => member.status === 'approved');
     const participants = members.map((member) => ({
       id: member.user_id,
@@ -88,7 +111,22 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       })),
       schedule: (event.schedule ?? []).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).map((item) => ({ id: item.id, day: new Date(item.starts_at).toLocaleDateString('ja-JP'), time: new Date(item.starts_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }), title: item.title, note: item.note, type: item.item_type })),
       collections: (event.collections ?? []).map((collection) => ({ id: collection.id, title: collection.title, category: collection.category, paidByParticipantId: collection.paid_by_user_id, totalAmount: Number(collection.total_amount), splitMethod: collection.split_method, dueDate: collection.due_date, note: collection.note, shares: (collection.shares ?? []).map((share) => ({ participantId: share.user_id, amount: Number(share.amount), paid: share.paid, paidAt: share.paid_at ? new Date(share.paid_at).toLocaleDateString('ja-JP') : undefined })) })),
-      messages: (event.messages ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((message) => ({ id: message.id, authorId: message.author_id, author: message.author?.display_name ?? 'メンバー', initials: (message.author?.display_name ?? 'ME').slice(0, 2), text: message.body, time: new Date(message.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }), createdAt: message.created_at, mine: message.author_id === currentUserId, color: message.author?.avatar_color ?? '#68736C' })),
+      messages: (event.messages ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((message) => ({
+        id: message.id,
+        authorId: message.author_id,
+        author: message.author?.display_name ?? 'メンバー',
+        initials: (message.author?.display_name ?? 'ME').slice(0, 2),
+        text: message.body ?? '',
+        time: new Date(message.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+        createdAt: message.created_at,
+        mine: message.author_id === currentUserId,
+        color: message.author?.avatar_color ?? '#68736C',
+        imageUri: message.image_path ? signedImageUrls.get(message.image_path) : undefined,
+        imagePath: message.image_path,
+        imageMimeType: message.image_mime_type,
+        imageWidth: message.image_width,
+        imageHeight: message.image_height,
+      })),
       chatLastReadAt: event.members?.find((member) => member.user_id === currentUserId)?.chat_read_at,
     };
   });
@@ -145,10 +183,56 @@ export async function previewCloudEventInvite(code: string): Promise<EventInvite
   };
 }
 
-export async function syncCloudMessage(eventId: string, messageId: string, body: string) {
-  if (!supabase || !isCloudId(eventId)) return;
-  const { data } = await supabase.auth.getUser(); if (!data.user) return;
-  await supabase.from('messages').insert({ id: messageId, event_id: eventId, author_id: data.user.id, body });
+export async function syncCloudMessage(eventId: string, messageId: string, body: string, image?: ChatImageInput) {
+  if (!supabase || !isCloudId(eventId)) return undefined;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error('not_authenticated');
+
+  let imagePath: string | undefined;
+  if (image) {
+    if (image.fileSize && image.fileSize > MAX_CHAT_IMAGE_BYTES) throw new Error('image_too_large');
+    const response = await fetch(image.uri);
+    if (!response.ok) throw new Error('image_read_failed');
+    const imageData = await response.arrayBuffer();
+    if (imageData.byteLength > MAX_CHAT_IMAGE_BYTES) throw new Error('image_too_large');
+    const extension = imageExtension(image.mimeType, image.fileName);
+    imagePath = `${eventId}/${data.user.id}/${messageId}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from(CHAT_MEDIA_BUCKET).upload(imagePath, imageData, {
+      contentType: image.mimeType,
+      cacheControl: '3600',
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+  }
+
+  const { error } = await supabase.from('messages').insert({
+    id: messageId,
+    event_id: eventId,
+    author_id: data.user.id,
+    body,
+    image_path: imagePath ?? null,
+    image_mime_type: image?.mimeType ?? null,
+    image_width: image?.width ?? null,
+    image_height: image?.height ?? null,
+  });
+  if (error) {
+    if (imagePath) await supabase.storage.from(CHAT_MEDIA_BUCKET).remove([imagePath]);
+    throw error;
+  }
+  return imagePath;
+}
+
+function imageExtension(mimeType: string, fileName?: string) {
+  const byMimeType: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+  };
+  if (byMimeType[mimeType]) return byMimeType[mimeType];
+  const fromName = fileName?.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return fromName && fromName.length <= 5 ? fromName : 'jpg';
 }
 
 export async function syncCloudChatRead(eventId: string) {

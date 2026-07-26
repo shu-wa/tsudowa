@@ -212,7 +212,7 @@ pnpm export:web
 
 ### A. 開発中の画面を更新する
 
-ファイルを編集して保存するだけです。Fast RefreshでExpo Goへ反映されます。反映されない場合は端末で再読み込みするか、`pnpm exec expo start --clear` を実行します。
+ファイルを編集して保存するだけです。Fast RefreshでExpo Goへ反映されます。反映されない場合は端末で再読み込みするか、`pnpm exec expo start --clear` を実行します。チャットの写真選択はExpo Goでも確認できますが、参加者限定表示と削除はSupabaseの追加マイグレーション適用後に、複数アカウントで確認してください。
 
 ### B. Expo SDKやパッケージを更新する
 

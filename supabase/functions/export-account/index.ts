@@ -33,6 +33,14 @@ Deno.serve(async (request) => {
   const [profile, consents, memberships, messages, shares, reports, blocks, ownedEvents, scheduleItems, collections, dateCandidates, dateVotes] = exportQueries;
   const eventIds = (memberships.data ?? []).map((membership) => membership.event_id);
   const { data: events } = eventIds.length ? await admin.from('events').select('*').in('id', eventIds) : { data: [] };
+  const authoredPhotoPaths = (messages.data ?? []).map((message) => message.image_path).filter(Boolean) as string[];
+  const photoLinkExpiresInSeconds = 24 * 60 * 60;
+  const { data: authoredPhotoLinks, error: authoredPhotoLinksError } = authoredPhotoPaths.length
+    ? await admin.storage.from('chat-media').createSignedUrls(authoredPhotoPaths, photoLinkExpiresInSeconds)
+    : { data: [], error: null };
+  if (authoredPhotoLinksError) {
+    return new Response(JSON.stringify({ error: 'media_export_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
   const exportData = {
     exported_at: new Date().toISOString(),
     account: { id: userId, email: userData.user.email, created_at: userData.user.created_at },
@@ -42,6 +50,11 @@ Deno.serve(async (request) => {
     events: events ?? [],
     owned_events: ownedEvents.data ?? [],
     authored_messages: messages.data ?? [],
+    authored_chat_photos: (authoredPhotoLinks ?? []).map((photo) => ({
+      path: photo.path,
+      download_url: photo.signedUrl,
+      download_url_expires_at: new Date(Date.now() + photoLinkExpiresInSeconds * 1000).toISOString(),
+    })),
     authored_schedule_items: scheduleItems.data ?? [],
     created_or_paid_collections: collections.data ?? [],
     collection_shares: shares.data ?? [],

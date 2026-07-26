@@ -23,6 +23,19 @@ Deno.serve(async (request) => {
   const { data: ownedEvents, error: ownedEventsError } = await admin.from('events').select('id').eq('owner_id', userId);
   if (ownedEventsError) return failure('owned_events_lookup_failed');
   const ownedEventIds = (ownedEvents ?? []).map((event) => event.id);
+
+  const authoredMediaQuery = admin.from('messages').select('image_path').eq('author_id', userId).not('image_path', 'is', null);
+  const ownedEventMediaQuery = ownedEventIds.length
+    ? admin.from('messages').select('image_path').in('event_id', ownedEventIds).not('image_path', 'is', null)
+    : Promise.resolve({ data: [], error: null });
+  const [authoredMedia, ownedEventMedia] = await Promise.all([authoredMediaQuery, ownedEventMediaQuery]);
+  if (authoredMedia.error || ownedEventMedia.error) return failure('media_lookup_failed');
+  const mediaPaths = [...new Set([...(authoredMedia.data ?? []), ...(ownedEventMedia.data ?? [])].map((message) => message.image_path).filter(Boolean))] as string[];
+  if (mediaPaths.length) {
+    const { error: mediaDeleteError } = await admin.storage.from('chat-media').remove(mediaPaths);
+    if (mediaDeleteError) return failure('media_delete_failed');
+  }
+
   if (ownedEventIds.length) {
     const { error: ownedEventDeleteError } = await admin.from('events').delete().in('id', ownedEventIds);
     if (ownedEventDeleteError) return failure('owned_events_delete_failed');

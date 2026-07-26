@@ -26,6 +26,11 @@ export default function OnboardingScreen() {
   const [email, setEmail] = useState(user?.email ?? '');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [birthDateOpen, setBirthDateOpen] = useState(false);
+  const [birthDateLimits] = useState(() => {
+    const today = new Date();
+    const pickerDefault = new Date(today.getFullYear() - 20, today.getMonth(), today.getDate(), 12);
+    return { minimum: new Date(1900, 0, 1, 12), maximum: today, pickerDefault };
+  });
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [community, setCommunity] = useState(false);
@@ -52,7 +57,7 @@ export default function OnboardingScreen() {
             <View style={styles.stepIcon}><Ionicons name="person-add-outline" size={28} color={palette.primary} /></View><Text style={styles.eyebrow}>YOUR ACCOUNT</Text><Text style={styles.title}>最初の登録</Text><Text style={styles.lead}>イベント内で使う表示名と、本人確認に使う情報を登録します。</Text>
             <Input label="表示名" value={name} onChangeText={setName} placeholder="例：佐藤 美咲" autoFocus />
             <Input label="メールアドレス" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
-            <NativeDateField label="生年月日" value={dateOfBirth} onChange={setDateOfBirth} open={birthDateOpen} onOpenChange={setBirthDateOpen} minimumDate={new Date(1900, 0, 1)} maximumDate={new Date()} emptyLabel="生年月日を選択" iosDisplay="spinner" />
+            <NativeDateField label="生年月日" value={dateOfBirth} onChange={setDateOfBirth} open={birthDateOpen} onOpenChange={setBirthDateOpen} minimumDate={birthDateLimits.minimum} maximumDate={birthDateLimits.maximum} pickerDefaultDate={birthDateLimits.pickerDefault} emptyLabel="生年月日を選択" iosDisplay="spinner" />
             <View style={styles.notice}><Ionicons name="lock-closed-outline" size={17} color={palette.primary} /><Text style={styles.noticeText}>生年月日は年齢確認のために使用し、プロフィールには公開されません。</Text></View>
             <PrimaryButton label="同意内容を確認" onPress={nextFromProfile} />
             <BackButton onPress={() => setStep(0)} />

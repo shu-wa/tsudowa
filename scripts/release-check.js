@@ -59,8 +59,20 @@ if (appConfig.ios?.bundleIdentifier === 'com.shuwa.tsudowa' && appConfig.android
 }
 if (appConfig.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false) pass('iOS暗号化申告設定を確認');
 else fail('ITSAppUsesNonExemptEncryption の設定を確認してください');
+const imagePickerPlugin = appConfig.plugins?.find(
+  (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-image-picker',
+);
+if (imagePickerPlugin?.[1]?.photosPermission && imagePickerPlugin[1].cameraPermission === false) {
+  pass('写真選択の用途説明と不要なカメラ権限の無効化を確認');
+} else {
+  fail('expo-image-pickerの写真用途説明、または不要なカメラ権限の無効化が不足しています');
+}
 if (appConfig.extra?.eas?.projectId) pass('EAS projectIdを確認');
 else fail('EAS projectId が未設定です。eas init でプロジェクトをリンクしてください');
+
+const packageJson = JSON.parse(read('package.json'));
+if (packageJson.dependencies?.['expo-image-picker'] === '~17.0.11') pass('Expo SDK 54対応の写真選択依存を確認');
+else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください');
 
 [
   'assets/images/brand-icon.png',
@@ -76,7 +88,15 @@ else fail('EAS projectId が未設定です。eas init でプロジェクトを�
   'constants/legal.ts',
   'supabase/functions/delete-account/index.ts',
   'supabase/functions/export-account/index.ts',
+  'supabase/migrations/202607260002_chat_images.sql',
 ].forEach((file) => exists(file) ? pass(`${file} を確認`) : fail(`${file} がありません`));
+
+const privacyCopy = read('constants/legal.ts');
+if (/写真ライブラリ/.test(privacyCopy) && /期限付きURL/.test(privacyCopy) && /共有写真/.test(privacyCopy)) {
+  pass('写真共有のプライバシー説明を確認');
+} else {
+  fail('写真共有、非公開保存、削除に関するプライバシー説明を確認してください');
+}
 
 const userFacingSource = [
   'app',

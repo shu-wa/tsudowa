@@ -10,6 +10,7 @@ import {
   AttendanceChoice,
   AvailabilityChoice,
   BlockedUser,
+  ChatImageInput,
   ChatMessage,
   CollectionItem,
   ConsentRecord,
@@ -61,7 +62,7 @@ type EventContextValue = {
   addEvent: (input: NewEventInput) => EventItem;
   addCollection: (eventId: string, input: NewCollectionInput) => CollectionItem;
   addScheduleItem: (eventId: string, input: NewScheduleInput) => void;
-  addMessage: (eventId: string, text: string) => string | null;
+  addMessage: (eventId: string, text: string, image?: ChatImageInput) => Promise<string | null>;
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
   toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => void;
@@ -518,24 +519,37 @@ export function EventProvider({ children }: PropsWithChildren) {
     resetLocalData: () => {
       setEvents([]);
     },
-    addMessage: (eventId, text) => {
-      const validationError = validateUserContent(text);
+    addMessage: async (eventId, text, image) => {
+      const normalizedText = text.trim();
+      if (!normalizedText && !image) return 'メッセージまたは写真を追加してください。';
+      const validationError = normalizedText ? validateUserContent(normalizedText) : null;
       if (validationError) return validationError;
+      if (image?.fileSize && image.fileSize > 8 * 1024 * 1024) return '写真は8MB以下にしてください。';
       const message: ChatMessage = {
         id: Crypto.randomUUID(),
         authorId: user?.id,
         author: profile.name,
         initials: profile.initials,
-        text,
+        text: normalizedText,
         time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
         createdAt: new Date().toISOString(),
         mine: true,
         color: profile.avatarColor,
+        imageUri: image?.uri,
+        imageMimeType: image?.mimeType,
+        imageWidth: image?.width,
+        imageHeight: image?.height,
       };
+      try {
+        message.imagePath = await syncCloudMessage(eventId, message.id, normalizedText, image);
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : '';
+        if (messageText === 'image_too_large') return '写真は8MB以下にしてください。';
+        return '写真またはメッセージを送信できませんでした。通信状態を確認して、もう一度お試しください。';
+      }
       setEvents((current) => current.map((event) => event.id === eventId
-        ? { ...event, messages: [...event.messages, message] }
+        ? { ...event, messages: event.messages.some((existing) => existing.id === message.id) ? event.messages : [...event.messages, message] }
         : event));
-      void syncCloudMessage(eventId, message.id, text);
       return null;
     },
     updateEventDateTime: (eventId, input) => {

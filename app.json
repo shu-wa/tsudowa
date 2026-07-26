@@ -2,7 +2,7 @@
   "expo": {
     "name": "TSUDOWA",
     "slug": "tsudowa",
-    "version": "0.12.0",
+    "version": "0.13.0",
     "orientation": "portrait",
     "icon": "./assets/images/brand-icon.png",
     "scheme": "tsudowa",
@@ -63,6 +63,14 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "イベント場所を現在地から探すために位置情報を使用します。"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "イベントチャットで選んだ写真を共有するために写真ライブラリを使用します。",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       [

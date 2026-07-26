@@ -45,12 +45,13 @@ npx.cmd supabase@latest db push
 
 `init` は最初の1回だけ実行します。`link` の前にログインとProject Refの指定が必要です。まず `--dry-run` で適用対象を確認し、問題がない場合だけ実際の `db push` を実行してください。
 
-適用されるファイルは `supabase/migrations/` 内のSQLすべてです。Version 0.11.0では、特に次のマイグレーションが追加されています。
+適用されるファイルは `supabase/migrations/` 内のSQLすべてです。Version 0.13.0では、特に次のマイグレーションが追加されています。
 
 ```text
 supabase/migrations/202607220006_chat_read_state.sql
 supabase/migrations/202607220007_invite_preview.sql
 supabase/migrations/202607220008_pgcrypto_function_schema.sql
+supabase/migrations/202607260002_chat_images.sql
 ```
 
 このSQLには次が含まれます。
@@ -64,6 +65,10 @@ supabase/migrations/202607220008_pgcrypto_function_schema.sql
 - 主催者／共同主催者だけが編集できる権限
 - アカウント単位のチャット既読位置
 - 参加前にイベント名・日時だけを返す招待確認関数
+- 写真付きチャットメッセージと、8MB・画像形式制限
+- 非公開Storageバケット `chat-media` と、イベント参加者だけが閲覧できるRLS
+
+チャット写真は公開URLにしません。アプリは参加中イベントの写真にだけ、有効期間1時間の署名付きURLを発行して表示します。送信者本人または主催者／共同主催者だけがStorage上の写真を削除できます。
 
 ## 4. アカウント削除・データ書き出し関数を公開する
 
@@ -110,6 +115,10 @@ npm.cmd run start -- --clear
 7. Bをブロックした時にメッセージが非表示になることを確認
 8. データ書き出しに他人の非公開データが混ざらないことを確認
 9. アカウント削除後にプロフィールと投稿が削除されることを確認
+10. Aが8MB以下のJPEG／PNG／WebP／HEIC写真を送り、Bだけが表示できることを確認
+11. イベントへ未参加のアカウントCから、写真の取得・署名URL発行・アップロードが拒否されることを確認
+12. データ書き出しに、本人が投稿した写真の24時間有効なダウンロードURLが含まれることを確認
+13. アカウント削除後に、本人が投稿したチャット写真もStorageから削除されることを確認
 
 ## 重要
 

@@ -12,15 +12,17 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<Mode>('signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return Alert.alert('メールアドレスを確認してください');
     if (password.length < 8) return Alert.alert('パスワードを確認してください', '8文字以上で設定してください。');
+    if (mode === 'signup' && password !== passwordConfirmation) return Alert.alert('パスワードが一致しません', '同じパスワードを2回入力してください。');
     setLoading(true);
     const result = mode === 'signup' ? await signUp(email, password) : await signIn(email, password);
     setLoading(false);
-    if (!result.ok) return Alert.alert('ログインできませんでした', result.message);
+    if (!result.ok) return Alert.alert(mode === 'signup' ? '登録できませんでした' : 'ログインできませんでした', result.message);
     if (result.needsEmailConfirmation) Alert.alert('確認メールを送りました', 'メール内のリンクを開いた後、この画面からログインしてください。', [{ text: 'ログインへ', onPress: () => setMode('login') }]);
   };
 
@@ -32,9 +34,10 @@ export default function AuthScreen() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><ScrollView contentContainerStyle={styles.content} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
     <View style={styles.logo}><Ionicons name="sparkles" size={30} color={palette.surface} /></View><Text style={styles.brand}>TSUDOWA</Text><Text style={styles.title}>{mode === 'signup' ? 'アカウントを作成' : 'おかえりなさい'}</Text><Text style={styles.lead}>{mode === 'signup' ? 'メールアドレスで安全にイベントへ参加できます。' : '登録したメールアドレスでログインしてください。'}</Text>
-    <View style={styles.segment}><TouchableOpacity style={[styles.segmentButton, mode === 'signup' && styles.segmentActive]} onPress={() => setMode('signup')}><Text style={[styles.segmentText, mode === 'signup' && styles.segmentTextActive]}>新規登録</Text></TouchableOpacity><TouchableOpacity style={[styles.segmentButton, mode === 'login' && styles.segmentActive]} onPress={() => setMode('login')}><Text style={[styles.segmentText, mode === 'login' && styles.segmentTextActive]}>ログイン</Text></TouchableOpacity></View>
+    <View style={styles.segment}><TouchableOpacity style={[styles.segmentButton, mode === 'signup' && styles.segmentActive]} onPress={() => setMode('signup')}><Text style={[styles.segmentText, mode === 'signup' && styles.segmentTextActive]}>新規登録</Text></TouchableOpacity><TouchableOpacity style={[styles.segmentButton, mode === 'login' && styles.segmentActive]} onPress={() => { setMode('login'); setPasswordConfirmation(''); }}><Text style={[styles.segmentText, mode === 'login' && styles.segmentTextActive]}>ログイン</Text></TouchableOpacity></View>
     <Text style={styles.label}>メールアドレス</Text><View style={styles.inputWrap}><Ionicons name="mail-outline" size={19} color={palette.muted} /><TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" placeholderTextColor="#9AA39E" /></View>
-    <Text style={styles.label}>パスワード</Text><View style={styles.inputWrap}><Ionicons name="lock-closed-outline" size={19} color={palette.muted} /><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" placeholder="8文字以上" placeholderTextColor="#9AA39E" /></View>
+    <Text style={styles.label}>パスワード</Text><View style={styles.inputWrap}><Ionicons name="lock-closed-outline" size={19} color={palette.muted} /><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} placeholder="8文字以上" placeholderTextColor="#9AA39E" /></View>
+    {mode === 'signup' && <><Text style={styles.label}>パスワード（確認）</Text><View style={styles.inputWrap}><Ionicons name="checkmark-circle-outline" size={19} color={palette.muted} /><TextInput accessibilityLabel="確認用パスワード" style={styles.input} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoCapitalize="none" autoComplete="new-password" placeholder="同じパスワードをもう一度入力" placeholderTextColor="#9AA39E" /></View></>}
     {mode === 'login' && <TouchableOpacity style={styles.forgot} onPress={resetPassword}><Text style={styles.forgotText}>パスワードを忘れた場合</Text></TouchableOpacity>}
     <TouchableOpacity style={[styles.submit, loading && styles.disabled]} onPress={submit} disabled={loading}><Text style={styles.submitText}>{loading ? '処理中…' : mode === 'signup' ? '登録する' : 'ログイン'}</Text><Ionicons name="arrow-forward" size={18} color={palette.surface} /></TouchableOpacity>
     <View style={styles.security}><Ionicons name="shield-checkmark-outline" size={17} color={palette.primary} /><Text style={styles.securityText}>ログイン情報は安全に取り扱います。</Text></View>

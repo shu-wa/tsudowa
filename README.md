@@ -16,9 +16,10 @@
 - OS標準の共有画面を使った招待
 - QRコード読み取り後も同じ確認画面を経由するイベント参加
 - 端末カレンダーへのイベント追加
-- イベント専用グループチャットと、アカウント単位で保存される未読件数
+- イベント専用グループチャット、写真共有、全画面プレビュー
+- アカウント単位で保存されるチャット未読件数
 - 予定追加とプロフィール編集
-- メール登録、ログイン、メール確認、パスワード再設定
+- パスワード2回確認付きのメール登録、ログイン、メール確認、パスワード再設定
 - 参加承認、主催者／共同主催者／参加者の権限管理
 - 参加・未定・不参加の回答と、主催者による参加申請の承認・拒否
 - イベント開始と未払い集金期限の端末内リマインダー
@@ -44,8 +45,9 @@ Expo Goの準備、日常のプログラミング、SDK更新、Development Buil
 - React Native 0.81
 - TypeScript
 - Expo Router
-- Supabase（Auth / PostgreSQL / Realtime / Edge Functions）
+- Supabase（Auth / PostgreSQL / Realtime / Storage / Edge Functions）
 - Expo Notifications（端末内リマインダー）
+- Expo Image Picker（端末標準の写真選択）
 - pnpm 11
 
 SDK 54はReact Native 0.81、React 19.1、Node.js 20.19以上の組み合わせです。詳細は[Expo SDK 54公式リファレンス](https://docs.expo.dev/versions/v54.0.0/)を参照してください。

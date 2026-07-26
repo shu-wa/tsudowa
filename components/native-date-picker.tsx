@@ -15,6 +15,7 @@ type NativeDateFieldProps = {
   emptyLabel?: string;
   allowClear?: boolean;
   iosDisplay?: IOSNativeProps['display'];
+  pickerDefaultDate?: Date;
 };
 
 type NativeDateRangePickerProps = {
@@ -75,15 +76,16 @@ export function NativeDateField({
   emptyLabel = '日付を選択',
   allowClear = false,
   iosDisplay = 'inline',
+  pickerDefaultDate,
 }: NativeDateFieldProps) {
   const normalizedMinimumDate = minimumDate ? toLocalNoon(minimumDate) : undefined;
   const normalizedMaximumDate = maximumDate ? toLocalNoon(maximumDate) : undefined;
-  const selectedDate = clampDate(toLocalDate(value, new Date()), normalizedMinimumDate, normalizedMaximumDate);
+  const selectedDate = clampDate(toLocalDate(value, pickerDefaultDate ?? new Date()), normalizedMinimumDate, normalizedMaximumDate);
 
   const handleChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS !== 'ios') onOpenChange(false);
     if (event.type === 'dismissed' || !date) return;
-    onChange(toDateString(date));
+    onChange(toDateString(clampDate(toLocalNoon(date), normalizedMinimumDate, normalizedMaximumDate)));
   };
 
   return (

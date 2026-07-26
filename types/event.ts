@@ -73,6 +73,20 @@ export type ChatMessage = {
   createdAt: string;
   mine?: boolean;
   color: string;
+  imageUri?: string;
+  imagePath?: string;
+  imageMimeType?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+};
+
+export type ChatImageInput = {
+  uri: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  fileSize?: number;
+  fileName?: string;
 };
 
 export type EventInvitePreview = {

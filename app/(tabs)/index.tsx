@@ -60,7 +60,7 @@ export default function HomeScreen() {
           <View style={styles.noticeIcon}><Ionicons name="chatbubble-ellipses" size={20} color={palette.primary} /></View>
           <View style={styles.noticeCopy}>
             <Text style={styles.noticeTitle}>{nextEvent.title}のメッセージ</Text>
-            <Text style={styles.noticeText}>{latestMessage.author.split(' ')[0]}：{latestMessage.text}</Text>
+            <Text style={styles.noticeText}>{latestMessage.author.split(' ')[0]}：{latestMessage.text || (latestMessage.imagePath || latestMessage.imageUri ? '写真' : 'メッセージ')}</Text>
           </View>
           {unreadCount > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text></View>}
         </TouchableOpacity>}

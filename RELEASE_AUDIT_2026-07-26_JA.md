@@ -30,7 +30,7 @@
 対応内容:
 
 - 日付はカレンダー、時刻は端末標準の選択UIを利用
-- カメラ、位置情報、カレンダー、通知は必要な場面でのみ許可を要求
+- 写真ライブラリ、カメラ、位置情報、カレンダー、通知は必要な場面でのみ許可を要求
 - 位置情報を拒否しても施設名・住所を手入力可能
 - モーダルには戻る操作または明確な完了操作を用意
 - 小さすぎた本文・補助テキストを引き上げ、React Native標準の文字サイズ拡大を許容
@@ -116,7 +116,7 @@ Play Consoleでは主目的に合う「イベント」カテゴリを検討し�
 
 - Contact Info: Email Address
 - Identifiers: User ID
-- User Content: Emails or Text Messages、Other User Content
+- User Content: Photos or Videos、Emails or Text Messages、Other User Content
 - Precise Location: 現在地をイベント場所として保存した場合
 - Other Data: 表示名、表示ID、生年月日、地域、参加状況、同意履歴
 - Financial Info / Other Financial Info: 集金額、立替者、支払状態。カード・銀行・決済情報は収集しない
@@ -130,6 +130,7 @@ Play Consoleでは主目的に合う「イベント」カテゴリを検討し�
 - Personal info: Name、Email address、User IDs、Date of birth
 - Location: Precise location（利用者が現在地を場所として選んだ場合）
 - Messages: In-app messages
+- Photos and videos: Photos（利用者がチャットで選択した場合）
 - Financial info: 共有費用と支払状態。決済認証情報は収集しない
 - App activity / Other user-generated content: イベント、参加、予定、通報、ブロック
 
@@ -159,7 +160,8 @@ Play Consoleでは主目的に合う「イベント」カテゴリを検討し�
 - イベント作成、複数日、開始時刻のみ、時間帯
 - 位置権限の許可・拒否、住所手入力、Androidリリース版の地図
 - 招待コードの確認画面、承認制参加、期限切れ、使用上限
-- チャット未読、通報、ブロック、別端末でのブロック同期
+- チャット未読、写真送信・全画面表示・8MB制限、通報、ブロック、別端末でのブロック同期
+- イベント参加者だけが写真を取得でき、第三者・退出者は取得できないこと
 - 複数集金、初期未払い、支払状態、期日なし
 - データ書き出し、一般参加者の削除、主催者の削除
 - オフライン、タイムアウト、セッション切れ、サーバーエラー
@@ -187,6 +189,7 @@ Suggested flow:
 4. Open group chat. Use the menu beside another user's message to access separate Report and Block controls.
 5. Open My Page > Privacy Center to test data export and account deletion.
 
-Location, camera, calendar and notification permissions are requested only when the corresponding feature is used.
+Photo library, location, camera, calendar and notification permissions are requested only when the corresponding feature is used.
+Selected chat photos are stored in a private bucket and are accessible only to members of the corresponding event.
 If location access is denied, venue and address can still be entered manually.
 ```

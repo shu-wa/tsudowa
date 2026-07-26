@@ -13,7 +13,7 @@ export default function AccountDeletionScreen() {
       Alert.alert('連絡先を確認できません', 'アプリ内のプライバシーセンターから削除を開始してください。');
       return;
     }
-    const subject = encodeURIComponent('Do Eventer アカウント削除依頼');
+    const subject = encodeURIComponent('TSUDOWA アカウント削除依頼');
     const body = encodeURIComponent('登録メールアドレス：\n\nアカウント削除を依頼します。本人確認に必要な案内を送ってください。');
     await Linking.openURL(`mailto:${legalConfig.supportEmail}?subject=${subject}&body=${body}`);
   };

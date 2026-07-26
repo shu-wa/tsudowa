@@ -1,4 +1,4 @@
--- Do Eventer production foundation
+-- TSUDOWA production foundation
 -- Run with `supabase db push` after linking a Supabase project.
 
 create extension if not exists pgcrypto;

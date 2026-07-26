@@ -1,4 +1,4 @@
-# Do Eventer Supabase設定手順
+# TSUDOWA Supabase設定手順
 
 Version 0.11.0
 
@@ -11,7 +11,7 @@ Version 0.11.0
 ## 1. Supabaseプロジェクトを作る
 
 1. https://supabase.com/dashboard へログインします。
-2. New projectからDo Eventer用プロジェクトを作成します。
+2. New projectからTSUDOWA用プロジェクトを作成します。
 3. 公開対象地域、データ保護方針、利用者との距離を考慮してリージョンを選びます。
 4. Project Settings > API または Connect画面から次の2つを確認します。
    - Project URL
@@ -21,7 +21,7 @@ Version 0.11.0
 
 ## 2. アプリへ公開設定を入れる
 
-`C:\dev\do-eventer\.env.example` を `.env` という名前でコピーし、次の値を書き換えます。
+`C:\dev\tsudowa\.env.example` を `.env` という名前でコピーし、次の値を書き換えます。
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=https://実際のPROJECT_REF.supabase.co
@@ -35,7 +35,7 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=実際のsb_publishableキー
 推奨はSupabase CLIです。
 
 ```powershell
-cd C:\dev\do-eventer
+cd C:\dev\tsudowa
 npx.cmd supabase@latest init
 npx.cmd supabase@latest login
 npx.cmd supabase@latest link --project-ref 実際のPROJECT_REF
@@ -68,7 +68,7 @@ supabase/migrations/202607220008_pgcrypto_function_schema.sql
 ## 4. アカウント削除・データ書き出し関数を公開する
 
 ```powershell
-cd C:\dev\do-eventer
+cd C:\dev\tsudowa
 npx.cmd supabase@latest functions deploy delete-account
 npx.cmd supabase@latest functions deploy export-account
 ```
@@ -80,20 +80,20 @@ Supabaseが自動提供する `SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` を
 Supabase DashboardのAuthenticationで以下を設定します。
 
 - 本番のSite URL
-- Do Eventer用のメール差出人
+- TSUDOWA用のメール差出人
 - メール確認テンプレート
 - パスワード再設定テンプレート
 - 不正登録防止のレート制限とCAPTCHA
 - 本番用ディープリンク／Universal Link
 
-現在のアプリスキームは `do-eventer://` です。ストア公開前は、Webドメインを取得してUniversal Links / App Linksを追加してください。
+現在のアプリスキームは `tsudowa://` です。ストア公開前は、Webドメインを取得してUniversal Links / App Linksを追加してください。
 
 ## 6. 起動する
 
 新しいネイティブ部品が追加されているため、キャッシュを消して起動します。
 
 ```powershell
-cd C:\dev\do-eventer
+cd C:\dev\tsudowa
 npm.cmd run start -- --clear
 ```
 

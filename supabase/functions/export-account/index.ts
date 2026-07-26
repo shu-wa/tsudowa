@@ -50,5 +50,5 @@ Deno.serve(async (request) => {
     submitted_reports: reports.data ?? [],
     blocked_users: blocks.data ?? [],
   };
-  return new Response(JSON.stringify(exportData), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="do-eventer-export.json"' } });
+  return new Response(JSON.stringify(exportData), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="tsudowa-export.json"' } });
 });

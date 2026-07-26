@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Do Eventer",
-    "slug": "do-eventer",
+    "name": "TSUDOWA",
+    "slug": "tsudowa",
     "version": "0.12.0",
     "orientation": "portrait",
     "icon": "./assets/images/brand-icon.png",
-    "scheme": "do-eventer",
+    "scheme": "tsudowa",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F5F3EC",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.shuwa.doeventer",
+      "bundleIdentifier": "com.shuwa.tsudowa",
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -25,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.shuwa.doeventer",
+      "package": "com.shuwa.tsudowa",
       "versionCode": 1
     },
     "web": {

@@ -29,7 +29,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
-const STORAGE_KEY = '@do-eventer/app-data-v2';
+const STORAGE_KEY = '@tsudowa/app-data-v2';
+const LEGACY_STORAGE_KEY = ['@do', 'eventer/app-data-v2'].join('-');
 const LEGACY_SAMPLE_EVENT_IDS = new Set(['hakone-retreat', 'summer-bbq', 'design-meetup']);
 
 const defaultProfile: UserProfile = {
@@ -120,6 +121,7 @@ const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event)
 export function EventProvider({ children }: PropsWithChildren) {
   const { user, isConfigured } = useAuth();
   const storageKey = `${STORAGE_KEY}/${user?.id ?? 'local'}`;
+  const legacyStorageKey = `${LEGACY_STORAGE_KEY}/${user?.id ?? 'local'}`;
   const [events, setEvents] = useState<EventItem[]>([]);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -138,6 +140,14 @@ export function EventProvider({ children }: PropsWithChildren) {
     setConsentHistory([]);
     setBlockedUsers([]);
     AsyncStorage.getItem(storageKey)
+      .then(async (stored) => {
+        if (stored) return stored;
+        const legacyStored = await AsyncStorage.getItem(legacyStorageKey);
+        if (!legacyStored) return null;
+        await AsyncStorage.setItem(storageKey, legacyStored);
+        await AsyncStorage.removeItem(legacyStorageKey);
+        return legacyStored;
+      })
       .then((stored) => {
         if (!active || !stored) return;
         const parsed = JSON.parse(stored) as { events?: EventItem[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] };
@@ -154,7 +164,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       .catch(() => undefined)
       .finally(() => active && setIsHydrated(true));
     return () => { active = false; };
-  }, [storageKey]);
+  }, [legacyStorageKey, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -182,7 +192,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     const refresh = () => fetchCloudEvents(user.id).then((cloudEvents) => { if (active) setEvents(cloudEvents); }).catch(() => undefined);
     void refresh();
     const client = supabase;
-    const channel = client?.channel(`do-eventer-${user.id}`)
+    const channel = client?.channel(`tsudowa-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_members' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'date_candidates' }, refresh)
@@ -207,7 +217,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }));
     };
     void refreshBlocks();
-    const channel = client.channel(`do-eventer-blocks-${user.id}`)
+    const channel = client.channel(`tsudowa-blocks-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_users', filter: `blocker_id=eq.${user.id}` }, refreshBlocks)
       .subscribe();
     return () => { active = false; void client.removeChannel(channel); };
@@ -431,7 +441,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       if (enabled) {
         try {
           const granted = await requestNotificationPermission();
-          if (!granted) return '端末の設定でDo Eventerの通知を許可してください。';
+          if (!granted) return '端末の設定でTSUDOWAの通知を許可してください。';
         } catch {
           return '通知を有効にできませんでした。端末の設定を確認してください。';
         }

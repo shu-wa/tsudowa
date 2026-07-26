@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function PrivacyCenterScreen() {
   const { consentHistory, exportUserData, deleteLocalAccount } = useEvents();
   const exportData = async () => {
-    try { await Share.share({ title: 'Do Eventer データ書き出し', message: await exportUserData() }); }
+    try { await Share.share({ title: 'TSUDOWA データ書き出し', message: await exportUserData() }); }
     catch { Alert.alert('書き出しに失敗しました'); }
   };
   const deleteAccount = () => Alert.alert('アカウントを削除しますか？', 'プロフィール、参加情報、メッセージ、支払状態などが削除されます。あなたが主催するイベントと、そのイベント内の共有データも参加者全員から削除されます。この操作は元に戻せません。', [

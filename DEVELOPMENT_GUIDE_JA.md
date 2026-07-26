@@ -1,15 +1,15 @@
-# Do Eventer 開発ガイド
+# TSUDOWA 開発ガイド
 
-この文書は、プログラミング経験が少ない方でもDo Eventerを起動・編集・更新できるようにまとめた手順書です。
+この文書は、プログラミング経験が少ない方でもTSUDOWAを起動・編集・更新できるようにまとめた手順書です。
 
 ## 1. 最初に理解すること
 
-Do EventerはExpoとReact Nativeで作られています。画面を一度作れば、同じコードをiPhone、Android、Webで動かせます。
+TSUDOWAはExpoとReact Nativeで作られています。画面を一度作れば、同じコードをiPhone、Android、Webで動かせます。
 
 - Expo Go：開発初期にスマートフォンで素早く試すためのアプリ
 - 開発サーバー：パソコン上でコードを読み込み、スマートフォンへ送る仕組み
 - Fast Refresh：ファイルを保存すると、変更をほぼ即座に画面へ反映する機能
-- Development Build：Do Eventer専用の開発用アプリ。本格開発で使用
+- Development Build：TSUDOWA専用の開発用アプリ。本格開発で使用
 - EAS Build：iOS／Androidアプリをクラウドでビルドするサービス
 
 現在の試作版はExpo SDK 54です。2026年7月20日時点のExpo公式案内では、物理端末のExpo Goで試す場合にSDK 54が案内されています。ただしExpo Goが対応するSDKは更新されるため、互換性エラーが出た場合は後述のDevelopment Buildを使うか、SDKを段階的に更新してください。
@@ -74,12 +74,12 @@ pnpm.cmd --version
 PowerShellを開き、プロジェクトへ移動します。
 
 ```powershell
-cd C:\dev\do-eventer
+cd C:\dev\tsudowa
 npx.cmd pnpm@11.9.0 install
 npm.cmd run start
 ```
 
-このパソコンでは依存パッケージを配置済みなので、通常は `npm.cmd run start` だけで起動できます。エクスプローラーで `START_DO_EVENTER.cmd` をダブルクリックする方法もあります。
+このパソコンでは依存パッケージを配置済みなので、通常は `npm.cmd run start` だけで起動できます。エクスプローラーで `START_TSUDOWA.cmd` をダブルクリックする方法もあります。
 
 ターミナルへQRコードが表示されます。
 
@@ -107,7 +107,7 @@ pnpm exec expo start --clear
 
 ## 4. 日常的なプログラミング方法
 
-Visual Studio Codeで `C:\dev\do-eventer` フォルダーを開きます。別のPowerShellで `pnpm start` を動かしたままファイルを編集します。保存するとFast Refreshで端末へ反映されます。
+Visual Studio Codeで `C:\dev\tsudowa` フォルダーを開きます。別のPowerShellで `pnpm start` を動かしたままファイルを編集します。保存するとFast Refreshで端末へ反映されます。
 
 ### よく編集する場所
 
@@ -243,7 +243,7 @@ EAS Updateは設定済みのDevelopment Build／公開アプリで使用しま�
 
 ## 7. Expo GoからDevelopment Buildへ進む
 
-Expo Goは試作には便利ですが、プッシュ通知、独自ネイティブライブラリ、アプリ名・アイコンの正確な確認などには制限があります。本格開発を始める時点でDo Eventer専用のDevelopment Buildへ移行します。
+Expo Goは試作には便利ですが、プッシュ通知、独自ネイティブライブラリ、アプリ名・アイコンの正確な確認などには制限があります。本格開発を始める時点でTSUDOWA専用のDevelopment Buildへ移行します。
 
 ```powershell
 pnpm exec expo install expo-dev-client
@@ -297,7 +297,7 @@ pnpm dlx eas-cli@latest build --platform ios --profile production
 8. 支払方法のメモ（現金、PayPayなど。アプリ内決済は行わない）
 9. 通報、ブロック、管理機能
 
-Do Eventerは送金・決済を行わず、支払済みかどうかだけを記録します。現金、PayPay、銀行振込など、利用者が選んだ方法で支払える設計です。
+TSUDOWAは送金・決済を行わず、支払済みかどうかだけを記録します。現金、PayPay、銀行振込など、利用者が選んだ方法で支払える設計です。
 
 ## 10. Gitを使った安全な更新
 

@@ -1,4 +1,4 @@
-# Do Eventer
+# TSUDOWA
 
 イベントごとに必要な連絡・予定・参加者・料金をひとつにまとめる、iOS／Android共通のイベントコミュニケーションアプリです。LINEなどで友だち登録やグループ作成をせず、招待コードだけでイベント単位につながる体験を目指しています。
 
@@ -36,7 +36,7 @@
 
 Expo Goの準備、日常のプログラミング、SDK更新、Development Build、ストア公開については[日本語開発ガイド](./DEVELOPMENT_GUIDE_JA.md)を参照してください。
 
-2026年7月のApple／Google要件、知的財産、ストア申告、残るリリース阻害項目は[リリース監査](./RELEASE_AUDIT_2026-07-26_JA.md)にまとめています。
+2026年7月のApple／Google要件、知的財産、ストア申告、残るリリース阻害項目は[リリース監査](./RELEASE_AUDIT_2026-07-26_JA.md)にまとめています。名称の一次調査条件と結果は[TSUDOWA商標監査](./TRADEMARK_AUDIT_TSUDOWA_2026-07-26_JA.md)に記録しています。
 
 ## 採用技術
 
@@ -67,7 +67,7 @@ npm.cmd run start
 - Androidエミュレーター：`a` を押す（Android Studioが必要）
 - iOSシミュレーター：`i` を押す（macOSとXcodeが必要）
 
-現在のWindows環境では、`START_DO_EVENTER.cmd` をダブルクリックしても起動できます。`pnpm` が認識されない場合も、起動は `npm.cmd run start` を使用できます。
+現在のWindows環境では、`START_TSUDOWA.cmd` をダブルクリックしても起動できます。`pnpm` が認識されない場合も、起動は `npm.cmd run start` を使用できます。
 
 ## 品質確認
 
@@ -114,4 +114,4 @@ constants/           色・文字・影などのデザイン設定
 5. TestFlight／Google Play内部テスト
 6. ストア用画像、サポート窓口、削除申請Webページの公開
 
-ストアへ提出する前に、`app.json` の `com.example.doeventer` を所有するBundle ID／Package名へ変更し、アプリアイコン、利用規約、プライバシーポリシーを用意してください。
+Bundle ID／Package名は `com.shuwa.tsudowa` に設定済みです。ストアへ提出する前に、このIDをApple DeveloperとGoogle Play Consoleで登録し、変更せずに使用できることを確認してください。

@@ -3,7 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 const CHANNEL_ID = 'event-reminders';
-const IDENTIFIER_PREFIX = 'do-eventer-';
+const IDENTIFIER_PREFIX = 'tsudowa-';
+const LEGACY_IDENTIFIER_PREFIX = ['do', 'eventer-'].join('-');
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 
@@ -99,7 +100,9 @@ export async function syncLocalReminders(events: EventItem[], enabled: boolean) 
   await prepareAndroidChannel();
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(scheduled
-    .filter((notification) => notification.identifier.startsWith(IDENTIFIER_PREFIX))
+    .filter((notification) =>
+      notification.identifier.startsWith(IDENTIFIER_PREFIX)
+      || notification.identifier.startsWith(LEGACY_IDENTIFIER_PREFIX))
     .map((notification) => Notifications.cancelScheduledNotificationAsync(notification.identifier)));
 
   if (!enabled) return 0;

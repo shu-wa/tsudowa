@@ -1,5 +1,5 @@
 export const legalConfig = {
-  serviceName: 'Do Eventer',
+  serviceName: 'TSUDOWA',
   operatorName: process.env.EXPO_PUBLIC_OPERATOR_NAME?.trim() ?? '',
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() ?? '',
   termsVersion: '2026-07-26',
@@ -20,10 +20,10 @@ const contactText = legalConfig.supportEmail
 export const legalDocuments: Record<LegalDocumentKey, LegalDocument> = {
   terms: {
     title: '利用規約',
-    summary: 'Do Eventerを安心して利用するためのサービス利用条件です。',
+    summary: 'TSUDOWAを安心して利用するためのサービス利用条件です。',
     version: legalConfig.termsVersion,
     sections: [
-      { title: '1. 適用と同意', body: `本規約は、${operatorLabel}が提供するDo Eventerの利用条件を定めます。利用者は、登録時に本規約、プライバシーポリシー、コミュニティガイドラインを確認し、それぞれへ同意する必要があります。` },
+      { title: '1. 適用と同意', body: `本規約は、${operatorLabel}が提供するTSUDOWAの利用条件を定めます。利用者は、登録時に本規約、プライバシーポリシー、コミュニティガイドラインを確認し、それぞれへ同意する必要があります。` },
       { title: '2. 年齢とアカウント', body: '本サービスは16歳以上を対象とします。利用者は正確な情報を登録し、認証情報を適切に管理してください。アカウントの譲渡、貸与、なりすましは禁止します。年齢制限に反する利用を確認した場合、利用停止または削除を行います。' },
       { title: '3. イベントと集金情報', body: '主催者は日時、場所、予定、費用、安全上の注意を正確に案内してください。参加や移動は利用者自身の判断と責任で行います。集金機能は支払状態の記録のみで、送金、決済、金銭保管、返金、立替精算の仲介は行いません。' },
       { title: '4. 投稿に関する権利', body: '利用者は、自らが投稿するイベント情報やメッセージについて必要な権利を有し、第三者の著作権、商標権、肖像権、プライバシーその他の権利を侵害しないことを保証します。利用者は、サービスの提供、表示、送信、バックアップ、安全対策、規約違反調査に必要な範囲で、投稿を取り扱う非独占的かつ無償の利用許諾を運営者へ付与します。この許諾は目的達成後に終了します。' },
@@ -72,7 +72,7 @@ export const legalDocuments: Record<LegalDocumentKey, LegalDocument> = {
   },
   acknowledgements: {
     title: '第三者ソフトウェア',
-    summary: 'Do Eventerで使用している主なオープンソースソフトウェアと地図サービスです。',
+    summary: 'TSUDOWAで使用している主なオープンソースソフトウェアと地図サービスです。',
     version: '2026-07-26',
     sections: [
       { title: '主なソフトウェア', body: 'Expo、React、React Native、Supabase JavaScript、React Navigation、react-native-maps、AsyncStorage、React Native DateTimePickerなどを、それぞれのオープンソースライセンスに従って使用しています。依存関係の監査では、MIT、ISC、BSD、Apache-2.0、MPL-2.0、CC-BY-4.0などのライセンスを確認しています。' },

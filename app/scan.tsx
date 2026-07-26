@@ -16,7 +16,7 @@ export default function ScanScreen() {
   const [scanned, setScanned] = useState(false);
 
   if (!permission) return <View style={styles.loading} />;
-  if (!permission.granted) return <SafeAreaView style={styles.permission}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={34} color={palette.primary} /></View><Text style={styles.permissionTitle}>カメラの許可が必要です</Text><Text style={styles.permissionText}>招待QRコードを読み取るために、Do Eventerのカメラ利用を許可してください。</Text><TouchableOpacity style={styles.permissionButton} onPress={requestPermission}><Text style={styles.permissionButtonText}>カメラを許可する</Text></TouchableOpacity></SafeAreaView>;
+  if (!permission.granted) return <SafeAreaView style={styles.permission}><View style={styles.permissionIcon}><Ionicons name="camera-outline" size={34} color={palette.primary} /></View><Text style={styles.permissionTitle}>カメラの許可が必要です</Text><Text style={styles.permissionText}>招待QRコードを読み取るために、TSUDOWAのカメラ利用を許可してください。</Text><TouchableOpacity style={styles.permissionButton} onPress={requestPermission}><Text style={styles.permissionButtonText}>カメラを許可する</Text></TouchableOpacity></SafeAreaView>;
 
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;

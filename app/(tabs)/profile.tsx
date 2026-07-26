@@ -59,7 +59,7 @@ export default function ProfileScreen() {
           {isConfigured && <TouchableOpacity style={styles.row} onPress={() => Alert.alert('ログアウトしますか？', undefined, [{ text: 'キャンセル', style: 'cancel' }, { text: 'ログアウト', style: 'destructive', onPress: signOut }])}><View style={styles.rowIcon}><Ionicons name="log-out-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>ログアウト</Text><Text style={styles.rowSub}>この端末のセッションを終了</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>}
         </View>
         {!isConfigured && <TouchableOpacity style={styles.resetButton} onPress={confirmReset}><Ionicons name="refresh-outline" size={17} color={palette.danger} /><Text style={styles.resetText}>保存データを初期化</Text></TouchableOpacity>}
-        <Text style={styles.version}>Do Eventer · Version {Constants.expoConfig?.version ?? '0.12.0'}</Text>
+        <Text style={styles.version}>TSUDOWA · Version {Constants.expoConfig?.version ?? '0.12.0'}</Text>
       </ScrollView>
     </SafeAreaView>
   );

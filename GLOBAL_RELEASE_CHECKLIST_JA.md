@@ -1,4 +1,4 @@
-# Do Eventer 世界公開チェックリスト
+# TSUDOWA 世界公開チェックリスト
 
 更新日: 2026-07-22
 
@@ -41,7 +41,7 @@ Version 0.12.0 は、ストア審査で重要になる初回同意、安全、�
 
 - 法人または個人事業の正式名称、所在地、責任者を確定
 - 実際に受信できるサポートメールアドレスを決め、アプリとストア掲載情報へ追加
-- `do-eventer.app/privacy`、`/terms`、`/community`、`/account-deletion` を公開
+- 取得した公開ドメインで `/privacy`、`/terms`、`/community-guidelines`、`/account-deletion`、`/support` を公開
 - 外部のアカウント削除依頼ページを用意（Google Playで必須）
 - サポート問い合わせの受付時間、言語、返信目標時間を定める
 

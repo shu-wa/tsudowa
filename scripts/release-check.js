@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve('.');
 const failures = [];
 const passes = [];
 
@@ -45,10 +45,18 @@ if (process.env.RELEASE_GLOBAL_COMPLIANCE_APPROVED !== 'true') {
 }
 
 const appConfig = JSON.parse(read('app.json')).expo;
+if (appConfig.name === 'TSUDOWA' && appConfig.slug === 'tsudowa' && appConfig.scheme === 'tsudowa') {
+  pass('TSUDOWAのアプリ名・slug・URLスキームを確認');
+} else {
+  fail('app.json の名称、slug、URLスキームをTSUDOWAへ統一してください');
+}
 if (appConfig.icon === './assets/images/brand-icon.png') pass('独自アプリアイコンを参照');
 else fail('app.json が独自アプリアイコンを参照していません');
-if (appConfig.ios?.bundleIdentifier && appConfig.android?.package) pass('iOS/AndroidアプリIDを確認');
-else fail('iOS/AndroidアプリIDが不足しています');
+if (appConfig.ios?.bundleIdentifier === 'com.shuwa.tsudowa' && appConfig.android?.package === 'com.shuwa.tsudowa') {
+  pass('TSUDOWAのiOS/AndroidアプリIDを確認');
+} else {
+  fail('iOS/AndroidアプリIDを com.shuwa.tsudowa へ統一してください');
+}
 if (appConfig.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false) pass('iOS暗号化申告設定を確認');
 else fail('ITSAppUsesNonExemptEncryption の設定を確認してください');
 if (appConfig.extra?.eas?.projectId) pass('EAS projectIdを確認');
@@ -75,12 +83,31 @@ const userFacingSource = [
   'components',
   'constants',
 ].flatMap((directory) => walk(path.join(root, directory)));
-const forbiddenCopy = /(公開版では|Do Eventer運営|人オンライン|サンプルデータ|ダミーデータ|ハッシュで保存)/;
+const forbiddenCopy = /(公開版では|TSUDOWA運営|人オンライン|サンプルデータ|ダミーデータ|ハッシュで保存)/;
 for (const file of userFacingSource) {
   const content = fs.readFileSync(file, 'utf8');
   if (forbiddenCopy.test(content)) fail(`未完成または開発者向け文言を検出: ${path.relative(root, file)}`);
 }
 if (!failures.some((item) => item.includes('未完成または開発者向け文言'))) pass('利用者画面の未完成文言を確認');
+
+const legacyBrandPattern = new RegExp('do' + '[ _-]?' + 'eventer', 'i');
+const legacyBrandFiles = [
+  ...walk(path.join(root, 'app')),
+  ...walk(path.join(root, 'components')),
+  ...walk(path.join(root, 'constants')),
+  ...walk(path.join(root, 'context')),
+  ...walk(path.join(root, 'lib')),
+  ...walk(path.join(root, 'scripts')),
+  ...walk(path.join(root, 'supabase')),
+  path.join(root, 'app.json'),
+  path.join(root, 'package.json'),
+].filter((file) => fs.existsSync(file));
+for (const file of legacyBrandFiles) {
+  if (legacyBrandPattern.test(fs.readFileSync(file, 'utf8'))) {
+    fail(`旧ブランド名を検出: ${path.relative(root, file)}`);
+  }
+}
+if (!failures.some((item) => item.includes('旧ブランド名を検出'))) pass('旧ブランド名が残っていないことを確認');
 
 const clientSource = [...walk(path.join(root, 'app')), ...walk(path.join(root, 'components')), ...walk(path.join(root, 'lib'))]
   .map((file) => fs.readFileSync(file, 'utf8'))

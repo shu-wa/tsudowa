@@ -29,7 +29,7 @@ export default function EventDetailScreen() {
   const invite = async () => {
     const code = event.inviteCode || await createInviteCode(event.id);
     if (!code) return Alert.alert('招待コードを発行できませんでした', '通信状態や主催者権限を確認してください。');
-    await Share.share({ message: `${event.title}に招待されました。\n${event.dateLabel} / ${event.location}\n参加コード：${code}\ndo-eventer://join?code=${code}` });
+    await Share.share({ message: `${event.title}に招待されました。\n${event.dateLabel} / ${event.location}\n参加コード：${code}\ntsudowa://join?code=${code}` });
   };
   const addToCalendar = async () => {
     if (Platform.OS === 'web') return Alert.alert('スマートフォンで利用できます', 'iOSまたはAndroidで端末カレンダーへ追加できます。');

@@ -33,7 +33,7 @@ export default function OnboardingScreen() {
   const nextFromProfile = () => {
     if (!name.trim()) return Alert.alert('表示名を入力してください');
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return Alert.alert('メールアドレスを確認してください');
-    if (!dateOfBirth || !isAtLeast16(dateOfBirth)) return Alert.alert('年齢を確認できません', 'Do Eventerは現在16歳以上の方を対象としています。生年月日を選択してください。');
+    if (!dateOfBirth || !isAtLeast16(dateOfBirth)) return Alert.alert('年齢を確認できません', 'TSUDOWAは現在16歳以上の方を対象としています。生年月日を選択してください。');
     setStep(2);
   };
   const finish = () => {
@@ -78,7 +78,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
     { icon: 'people-outline' as const, title: '友達追加は不要', text: '招待コードからイベント単位でつながる' },
     { icon: 'shield-checkmark-outline' as const, title: '安全にコントロール', text: '公開範囲、通報、ブロック、データ削除' },
   ];
-  return <><Image source={require('../assets/images/brand-icon.png')} style={styles.logo} accessibilityLabel="Do Eventer" /><Text style={styles.brand}>DO EVENTER</Text><Text style={styles.welcomeTitle}>イベントの連絡を、{`\n`}もっとシンプルに。</Text><Text style={styles.welcomeLead}>必要な人と、必要な期間だけつながるイベントコミュニケーション。</Text><View style={styles.features}>{features.map((feature) => <View key={feature.title} style={styles.feature}><View style={styles.featureIcon}><Ionicons name={feature.icon} size={22} color={palette.primary} /></View><View style={styles.featureCopy}><Text style={styles.featureTitle}>{feature.title}</Text><Text style={styles.featureText}>{feature.text}</Text></View></View>)}</View><PrimaryButton label="はじめる" onPress={onNext} /><Text style={styles.ageNote}>現在は16歳以上の方が利用できます</Text></>;
+  return <><Image source={require('../assets/images/brand-icon.png')} style={styles.logo} accessibilityLabel="TSUDOWA" /><Text style={styles.brand}>TSUDOWA</Text><Text style={styles.welcomeTitle}>イベントの連絡を、{`\n`}もっとシンプルに。</Text><Text style={styles.welcomeLead}>必要な人と、必要な期間だけつながるイベントコミュニケーション。</Text><View style={styles.features}>{features.map((feature) => <View key={feature.title} style={styles.feature}><View style={styles.featureIcon}><Ionicons name={feature.icon} size={22} color={palette.primary} /></View><View style={styles.featureCopy}><Text style={styles.featureTitle}>{feature.title}</Text><Text style={styles.featureText}>{feature.text}</Text></View></View>)}</View><PrimaryButton label="はじめる" onPress={onNext} /><Text style={styles.ageNote}>現在は16歳以上の方が利用できます</Text></>;
 }
 
 function Input({ label, ...props }: { label: string } & React.ComponentProps<typeof TextInput>) { return <View style={styles.inputGroup}><Text style={styles.inputLabel}>{label}</Text><TextInput {...props} style={styles.input} placeholderTextColor="#9AA39E" selectionColor={palette.primary} /></View>; }

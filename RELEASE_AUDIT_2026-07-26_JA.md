@@ -1,6 +1,6 @@
 # リリース監査（2026-07-26）
 
-この文書は、Do Eventerの実装と公開準備をApple、Google、日本の公式情報に照らして整理したものです。法的助言や商標登録可能性の保証ではありません。最終的な名称・規約・事業者表示は、必要に応じて弁護士・弁理士へ確認してください。
+この文書は、TSUDOWAの実装と公開準備をApple、Google、日本の公式情報に照らして整理したものです。法的助言や商標登録可能性の保証ではありません。最終的な名称・規約・事業者表示は、必要に応じて弁護士・弁理士へ確認してください。
 
 ## 結論
 
@@ -8,14 +8,13 @@
 
 ただし、次の項目は運営者本人の情報・外部アカウント・実機が必要なため、完了するまでストアへ提出しません。
 
-1. 「Do Eventer」の名称を継続するか決定し、J-PlatPatの詳細検索と必要な専門家確認を完了する
-2. 公開専用の運営者正式名称、サポートメール、Webドメインを `.env` に設定する
-3. `/privacy`、`/terms`、`/community-guidelines`、`/account-deletion`、`/support` をHTTPSで公開する
-4. EASプロジェクトを `eas init` でリンクし、`extra.eas.projectId` を設定する
-5. AndroidのGoogle Maps APIキーを、パッケージ名とリリース署名SHA-1で制限して設定する
-6. TestFlightとGoogle Play内部テストで、実機の権限、地図、削除、招待、通報を確認する
-7. App Store ConnectとPlay Consoleの申告、スクリーンショット、審査用アカウントを登録する
-8. 提供予定国ごとにプライバシー、UGC、消費者保護の運用を確認し、`RELEASE_GLOBAL_COMPLIANCE_APPROVED=true` を設定する
+1. 公開専用の運営者正式名称、サポートメール、Webドメインを `.env` に設定する
+2. `/privacy`、`/terms`、`/community-guidelines`、`/account-deletion`、`/support` をHTTPSで公開する
+3. EASプロジェクトを `eas init` でリンクし、`extra.eas.projectId` を設定する
+4. AndroidのGoogle Maps APIキーを、パッケージ名とリリース署名SHA-1で制限して設定する
+5. TestFlightとGoogle Play内部テストで、実機の権限、地図、削除、招待、通報を確認する
+6. App Store ConnectとPlay Consoleの申告、スクリーンショット、審査用アカウントを登録する
+7. 提供予定国ごとにプライバシー、UGC、消費者保護の運用を確認し、`RELEASE_GLOBAL_COMPLIANCE_APPROVED=true` を設定する
 
 `pnpm release:check` は、上記の設定不足をリリース阻害項目として検出します。
 
@@ -83,15 +82,17 @@ Play Consoleでは主目的に合う「イベント」カテゴリを検討し�
 
 ### サービス名
 
-「Eventer」という名称で、同じイベント領域の既存アプリ・事業者が複数確認されました。特に「Eventer - Unforgettable Events」は、招待、イベント参加、イベントチャットなど本サービスに近い機能を提供しています。そのため「Do Eventer」は、完全一致が見つからないだけでは安全と判断できず、主要語「Eventer」の類似性による商標・ストア審査・ブランド混同のリスクがあります。
+正式名称は「TSUDOWA」、日本語表記は「ツドワ」に決定しました。2026年7月26日にJ-PlatPatの出願・登録情報を詳細検索し、商標（検索用）「TSUDOWA」の完全一致、称呼（単純文字列検索）「ツドワ」の完全一致、称呼（類似検索）「ツドワ」は、いずれも0件でした。米国USPTOのWordmark検索でも「TSUDOWA」はLive 0件、Dead 0件でした。
 
-公開前に、J-PlatPatで文字、称呼、類似群コードを使い、少なくとも第9類（アプリ）、第38類（通信・チャット）、第41類（イベント）、第42類（SaaS）と、提供方法に応じて第35類を確認します。
+一般Web検索では、2016年の第三者ネーミング公募の提案欄に同じ綴りが1件あります。ただし、今回の確認範囲では同名のイベントアプリ、運営サービス、登録商標は確認できませんでした。検索結果0件は権利侵害がないことや登録可能性を保証するものではなく、未登録の使用、検索データ反映前の出願、綴り・音・観念が近い標章は別途考慮が必要です。
+
+一次調査の詳しい条件と結果は `TRADEMARK_AUDIT_TSUDOWA_2026-07-26_JA.md` に記録しました。公開前には検索を再実行し、少なくとも第9類（ダウンロード可能なアプリ）、第38類（通信・チャット）、第41類（イベント情報・運営）、第42類（SaaS）と、事業内容に応じて第35類を指定して、弁理士による最終クリアランスと文字商標の早期出願を推奨します。
 
 - J-PlatPat: https://www.j-platpat.inpit.go.jp/s0100
 - 特許庁の商標検索案内: https://www.jpo.go.jp/support/startup/shohyo_search.html
 - 類似群コード: https://www.jpo.go.jp/system/trademark/gaiyo/bunrui/ruijigun_cord_reidai.html
 
-名称の採用判断が終わるまで `RELEASE_BRAND_APPROVED=true` にしません。改名する場合も、候補名ごとに同じ検索を行います。
+名称採用と一次調査が完了したため、ローカルのリリース設定では `RELEASE_BRAND_APPROVED=true` にできます。このフラグは商標登録や法的保証を表すものではありません。
 
 ### アイコンと画面内素材
 
@@ -169,7 +170,7 @@ Play Consoleでは主目的に合う「イベント」カテゴリを検討し�
 App Review / Google Play review notes:
 
 ```text
-Do Eventer is an event-scoped coordination app. It does not process payments.
+TSUDOWA is an event-scoped coordination app. It does not process payments.
 The collection feature only records whether a participant has paid outside the app.
 
 Review account:

@@ -57,7 +57,7 @@ export default function EditLocationScreen() {
     setLoading(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) return Alert.alert('位置情報の許可が必要です', '端末の設定からDo Eventerの位置情報を許可してください。');
+      if (!permission.granted) return Alert.alert('位置情報の許可が必要です', '端末の設定からTSUDOWAの位置情報を許可してください。');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       await reverse(current.coords.latitude, current.coords.longitude);
     } catch { Alert.alert('現在地を取得できませんでした'); } finally { setLoading(false); }

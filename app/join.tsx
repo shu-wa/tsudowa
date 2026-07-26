@@ -30,13 +30,15 @@ export default function JoinScreen() {
   const join = async () => {
     if (!preview) return;
     setLoading(true);
-    const result = await joinEventByCode(code);
-    setLoading(false);
-    if (result.error) return Alert.alert('参加できませんでした', result.error);
-    if (result.pending) return Alert.alert('参加申請を送りました', '主催者が承認するとイベントが表示されます。', [{ text: '閉じる', onPress: () => router.dismiss() }]);
-    if (!result.eventId) return;
-    router.dismiss();
-    setTimeout(() => router.push(`/event/${result.eventId}`), 0);
+    try {
+      const result = await joinEventByCode(code);
+      if (result.error) return Alert.alert('参加できませんでした', result.error);
+      if (result.pending) return Alert.alert('参加申請を送りました', '主催者が承認するとイベントが表示されます。', [{ text: '閉じる', onPress: () => router.replace('/') }]);
+      if (!result.eventId) return Alert.alert('参加できませんでした', '通信状態を確認して、もう一度お試しください。');
+      setTimeout(() => router.replace(`/event/${result.eventId}`), 0);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, marginHorizontal: 10 },
   value: { color: palette.ink, fontSize: 18, fontWeight: '900' },
-  system: { color: palette.muted, fontSize: 8, marginTop: 2 },
+  system: { color: palette.muted, fontSize: 11, marginTop: 2 },
   pickerWrap: { marginTop: 8, borderRadius: 18, backgroundColor: palette.surface, padding: 8, alignItems: 'center' },
   done: { alignSelf: 'flex-end', minWidth: 72, borderRadius: 11, backgroundColor: palette.primary, paddingHorizontal: 17, paddingVertical: 9, alignItems: 'center' },
   doneText: { color: palette.surface, fontSize: 12, fontWeight: '900' },

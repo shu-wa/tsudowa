@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   arrow: { width: 38, height: 38, borderRadius: 13, backgroundColor: palette.canvas, alignItems: 'center', justifyContent: 'center' },
   month: { color: palette.ink, fontSize: 16, fontWeight: '900' },
   weekRow: { flexDirection: 'row', marginBottom: 5 },
-  week: { width: '14.285%', textAlign: 'center', color: palette.muted, fontSize: 10, fontWeight: '700' },
+  week: { width: '14.285%', textAlign: 'center', color: palette.muted, fontSize: 13, fontWeight: '700' },
   weekend: { color: palette.accent },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayCell: { width: '14.285%', height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
@@ -110,5 +110,5 @@ const styles = StyleSheet.create({
   outside: { color: '#B8BDB9' },
   selectedText: { color: palette.surface, fontWeight: '900' },
   guide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
-  guideText: { color: palette.muted, fontSize: 10, marginLeft: 5 },
+  guideText: { color: palette.muted, fontSize: 13, marginLeft: 5 },
 });

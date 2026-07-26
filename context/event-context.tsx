@@ -43,8 +43,6 @@ const defaultProfile: UserProfile = {
 const defaultSettings: AppSettings = {
   notificationsEnabled: false,
   onboardingCompleted: false,
-  analyticsEnabled: false,
-  crashReportsEnabled: false,
 };
 
 const TERMS_VERSION = legalConfig.termsVersion;
@@ -69,9 +67,7 @@ type EventContextValue = {
   updateProfile: (profile: UserProfile) => void;
   completeOnboarding: (input: OnboardingInput) => void;
   setNotificationsEnabled: (enabled: boolean) => Promise<string | null>;
-  setAnalyticsEnabled: (enabled: boolean) => void;
-  setCrashReportsEnabled: (enabled: boolean) => void;
-  submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status'>) => void;
+  submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status'>) => Promise<string | null>;
   toggleBlockUser: (name: string, userId?: string) => void;
   exportUserData: () => Promise<string>;
   deleteLocalAccount: () => Promise<string | null>;
@@ -195,6 +191,27 @@ export function EventProvider({ children }: PropsWithChildren) {
       .subscribe();
     return () => { active = false; if (client && channel) void client.removeChannel(channel); };
   }, [isConfigured, isHydrated, user]);
+
+  useEffect(() => {
+    if (!isConfigured || !isHydrated || !user || !supabase) return;
+    let active = true;
+    const client = supabase;
+    const refreshBlocks = async () => {
+      const { data, error } = await client.from('blocked_users').select('blocked_id, created_at').eq('blocker_id', user.id);
+      if (!active || error) return;
+      setBlockedUsers((current) => (data ?? []).map((row) => {
+        const knownName = events.flatMap((event) => event.participants).find((participant) => participant.id === row.blocked_id)?.name
+          ?? current.find((blocked) => blocked.userId === row.blocked_id)?.name
+          ?? 'ブロック中の利用者';
+        return { key: row.blocked_id, userId: row.blocked_id, name: knownName, blockedAt: row.created_at };
+      }));
+    };
+    void refreshBlocks();
+    const channel = client.channel(`do-eventer-blocks-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocked_users', filter: `blocker_id=eq.${user.id}` }, refreshBlocks)
+      .subscribe();
+    return () => { active = false; void client.removeChannel(channel); };
+  }, [events, isConfigured, isHydrated, user]);
 
   const value = useMemo<EventContextValue>(() => ({
     events,
@@ -396,7 +413,6 @@ export function EventProvider({ children }: PropsWithChildren) {
         ...current,
         onboardingCompleted: true,
         dateOfBirth: input.dateOfBirth,
-        analyticsEnabled: input.analyticsEnabled,
         termsAcceptedAt: recordedAt,
         privacyAcceptedAt: recordedAt,
         communityAcceptedAt: recordedAt,
@@ -408,7 +424,6 @@ export function EventProvider({ children }: PropsWithChildren) {
         { id: `terms-${Date.now()}`, document: 'terms', version: TERMS_VERSION, accepted: true, recordedAt },
         { id: `privacy-${Date.now()}`, document: 'privacy', version: PRIVACY_VERSION, accepted: true, recordedAt },
         { id: `community-${Date.now()}`, document: 'community', version: COMMUNITY_VERSION, accepted: true, recordedAt },
-        { id: `analytics-${Date.now()}`, document: 'analytics', version: '1', accepted: input.analyticsEnabled, recordedAt },
       ]);
       void syncOnboardingToCloud(input, nextProfile).catch(() => undefined);
     },
@@ -425,36 +440,47 @@ export function EventProvider({ children }: PropsWithChildren) {
       if (!enabled) void syncLocalReminders(events, false).catch(() => undefined);
       return null;
     },
-    setAnalyticsEnabled: (enabled) => {
-      const recordedAt = new Date().toISOString();
-      setSettings((current) => ({ ...current, analyticsEnabled: enabled }));
-      setConsentHistory((current) => [...current, { id: `analytics-${Date.now()}`, document: 'analytics', version: '1', accepted: enabled, recordedAt }]);
-    },
-    setCrashReportsEnabled: (enabled) => setSettings((current) => ({ ...current, crashReportsEnabled: enabled })),
-    submitSafetyReport: (report) => {
+    submitSafetyReport: async (report) => {
       const reportingSelf = report.targetUserId
         ? report.targetUserId === user?.id
         : report.targetUserName?.trim().toLowerCase() === profile.name.trim().toLowerCase();
-      if (reportingSelf) return;
-      setReports((current) => [...current, { ...report, id: `report-${Date.now()}`, createdAt: new Date().toISOString(), status: 'received' }]);
-      const client = supabase;
-      if (client) void client.auth.getUser().then(({ data }) => data.user && client.from('safety_reports').insert({
-        reporter_id: data.user.id,
+      if (reportingSelf) return '自分自身を通報することはできません。';
+      if (supabase) {
+        if (!user) return 'ログイン情報を確認できません。もう一度ログインしてください。';
+        const { error } = await supabase.from('safety_reports').insert({
+        reporter_id: user.id,
         event_id: report.eventId?.match(/^[0-9a-f-]{36}$/i) ? report.eventId : null,
         message_id: report.messageId?.match(/^[0-9a-f-]{36}$/i) ? report.messageId : null,
         target_user_id: report.targetUserId?.match(/^[0-9a-f-]{36}$/i) ? report.targetUserId : null,
         target_user_name: report.targetUserName,
         reason: report.reason,
         details: report.details,
-      }));
+        });
+        if (error) return '通報を送信できませんでした。通信状態を確認して、もう一度お試しください。';
+      }
+      setReports((current) => [...current, { ...report, id: `report-${Date.now()}`, createdAt: new Date().toISOString(), status: 'received' }]);
+      return null;
     },
     toggleBlockUser: (name, targetUserId) => {
       const blockingSelf = targetUserId ? targetUserId === user?.id : name.trim().toLowerCase() === profile.name.trim().toLowerCase();
       if (blockingSelf) return;
       const key = targetUserId ?? name.trim().toLowerCase();
+      const alreadyBlocked = blockedUsers.some((blocked) => blocked.key === key);
       setBlockedUsers((current) => current.some((blocked) => blocked.key === key)
         ? current.filter((blocked) => blocked.key !== key)
         : [...current, { key, userId: targetUserId, name, blockedAt: new Date().toISOString() }]);
+      if (supabase && user && targetUserId) {
+        const request = alreadyBlocked
+          ? supabase.from('blocked_users').delete().eq('blocker_id', user.id).eq('blocked_id', targetUserId)
+          : supabase.from('blocked_users').upsert({ blocker_id: user.id, blocked_id: targetUserId });
+        void request.then(({ error }) => {
+          if (error) {
+            setBlockedUsers((current) => alreadyBlocked
+              ? [...current.filter((blocked) => blocked.key !== key), { key, userId: targetUserId, name, blockedAt: new Date().toISOString() }]
+              : current.filter((blocked) => blocked.key !== key));
+          }
+        });
+      }
     },
     exportUserData: async () => {
       if (supabase) {

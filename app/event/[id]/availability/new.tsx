@@ -46,7 +46,7 @@ export default function NewAvailabilityCandidateScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 }, content: { padding: 20, paddingBottom: 38 }, empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.canvas },
-  guide: { borderRadius: 19, backgroundColor: palette.primarySoft, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 12 }, guideCopy: { flex: 1, marginLeft: 11 }, guideTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' }, guideText: { color: palette.muted, fontSize: 9, lineHeight: 15, marginTop: 3 },
+  guide: { borderRadius: 19, backgroundColor: palette.primarySoft, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 12 }, guideCopy: { flex: 1, marginLeft: 11 }, guideTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' }, guideText: { color: palette.muted, fontSize: 12, lineHeight: 15, marginTop: 3 },
   form: { borderRadius: 22, backgroundColor: palette.surface, padding: 15 }, label: { color: palette.ink, fontSize: 12, fontWeight: '800', marginBottom: 7 }, input: { minHeight: 54, borderRadius: 16, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 13, color: palette.ink, fontSize: 13 },
   button: { minHeight: 56, borderRadius: 18, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, buttonDisabled: { opacity: 0.65 }, buttonText: { color: palette.surface, fontSize: 14, fontWeight: '900' },
 });

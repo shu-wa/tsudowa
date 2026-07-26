@@ -21,7 +21,6 @@ export async function syncOnboardingToCloud(input: OnboardingInput, profile: Use
     { user_id: userId, document: 'terms', version: legalConfig.termsVersion, accepted: true, recorded_at: recordedAt },
     { user_id: userId, document: 'privacy', version: legalConfig.privacyVersion, accepted: true, recorded_at: recordedAt },
     { user_id: userId, document: 'community', version: legalConfig.communityVersion, accepted: true, recorded_at: recordedAt },
-    { user_id: userId, document: 'analytics', version: '1', accepted: input.analyticsEnabled, recorded_at: recordedAt },
   ]);
   if (consentError) throw consentError;
 }

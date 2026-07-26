@@ -17,8 +17,31 @@ Deno.serve(async (request) => {
   const { data: userData, error: userError } = await admin.auth.getUser(token);
   if (userError || !userData.user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-  // auth.users の削除により、外部キーの ON DELETE CASCADE で関連データも削除されます。
-  const { error } = await admin.auth.admin.deleteUser(userData.user.id, false);
+  const userId = userData.user.id;
+
+  // 主催イベントは所有者なしで存続できないため、関連データとともに先に削除します。
+  const { data: ownedEvents, error: ownedEventsError } = await admin.from('events').select('id').eq('owner_id', userId);
+  if (ownedEventsError) return failure('owned_events_lookup_failed');
+  const ownedEventIds = (ownedEvents ?? []).map((event) => event.id);
+  if (ownedEventIds.length) {
+    const { error: ownedEventDeleteError } = await admin.from('events').delete().in('id', ownedEventIds);
+    if (ownedEventDeleteError) return failure('owned_events_delete_failed');
+  }
+
+  // 他のイベント内で本人が作成・立替した項目は、restrict外部キーを解消しつつ削除します。
+  const cleanupResults = await Promise.all([
+    admin.from('schedule_items').delete().eq('created_by', userId),
+    admin.from('collections').delete().or(`created_by.eq.${userId},paid_by_user_id.eq.${userId}`),
+    admin.from('date_candidates').delete().eq('created_by', userId),
+  ]);
+  if (cleanupResults.some(({ error }) => error)) return failure('related_data_delete_failed');
+
+  // 残りのプロフィール、参加情報、メッセージ、通報、ブロック等は外部キーのcascadeで削除されます。
+  const { error } = await admin.auth.admin.deleteUser(userId, false);
   if (error) return new Response(JSON.stringify({ error: 'deletion_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  return new Response(JSON.stringify({ deleted: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ deleted: true, deleted_owned_events: ownedEventIds.length }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
+  function failure(code: string) {
+    return new Response(JSON.stringify({ error: code }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
 });

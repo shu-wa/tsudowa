@@ -13,7 +13,7 @@ Deno.serve(async (request) => {
   const { data: userData, error: userError } = await admin.auth.getUser(authorization.slice('Bearer '.length));
   if (userError || !userData.user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   const userId = userData.user.id;
-  const [profile, consents, memberships, messages, shares, reports, blocks] = await Promise.all([
+  const exportQueries = await Promise.all([
     admin.from('profiles').select('*').eq('id', userId).maybeSingle(),
     admin.from('consent_records').select('*').eq('user_id', userId),
     admin.from('event_members').select('*').eq('user_id', userId),
@@ -21,7 +21,16 @@ Deno.serve(async (request) => {
     admin.from('collection_shares').select('*').eq('user_id', userId),
     admin.from('safety_reports').select('*').eq('reporter_id', userId),
     admin.from('blocked_users').select('*').eq('blocker_id', userId),
+    admin.from('events').select('*').eq('owner_id', userId),
+    admin.from('schedule_items').select('*').eq('created_by', userId),
+    admin.from('collections').select('*').or(`created_by.eq.${userId},paid_by_user_id.eq.${userId}`),
+    admin.from('date_candidates').select('*').eq('created_by', userId),
+    admin.from('date_candidate_votes').select('*').eq('user_id', userId),
   ]);
+  if (exportQueries.some(({ error }) => error)) {
+    return new Response(JSON.stringify({ error: 'export_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  const [profile, consents, memberships, messages, shares, reports, blocks, ownedEvents, scheduleItems, collections, dateCandidates, dateVotes] = exportQueries;
   const eventIds = (memberships.data ?? []).map((membership) => membership.event_id);
   const { data: events } = eventIds.length ? await admin.from('events').select('*').in('id', eventIds) : { data: [] };
   const exportData = {
@@ -31,8 +40,13 @@ Deno.serve(async (request) => {
     consent_records: consents.data ?? [],
     memberships: memberships.data ?? [],
     events: events ?? [],
+    owned_events: ownedEvents.data ?? [],
     authored_messages: messages.data ?? [],
+    authored_schedule_items: scheduleItems.data ?? [],
+    created_or_paid_collections: collections.data ?? [],
     collection_shares: shares.data ?? [],
+    created_date_candidates: dateCandidates.data ?? [],
+    date_candidate_votes: dateVotes.data ?? [],
     submitted_reports: reports.data ?? [],
     blocked_users: blocks.data ?? [],
   };

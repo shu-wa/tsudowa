@@ -36,6 +36,8 @@
 
 Expo Goの準備、日常のプログラミング、SDK更新、Development Build、ストア公開については[日本語開発ガイド](./DEVELOPMENT_GUIDE_JA.md)を参照してください。
 
+2026年7月のApple／Google要件、知的財産、ストア申告、残るリリース阻害項目は[リリース監査](./RELEASE_AUDIT_2026-07-26_JA.md)にまとめています。
+
 ## 採用技術
 
 - Expo SDK 54

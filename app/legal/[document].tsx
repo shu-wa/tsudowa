@@ -1,26 +1,10 @@
-import { legalDocuments, LegalDocumentKey } from '@/constants/legal';
-import { palette } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { LegalDocumentView } from '@/components/legal-document-view';
+import { LegalDocumentKey } from '@/constants/legal';
 import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LegalDocumentScreen() {
   const { document } = useLocalSearchParams<{ document: string }>();
-  const key: LegalDocumentKey = document === 'privacy' || document === 'community' ? document : 'terms';
-  const content = legalDocuments[key];
-  return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}><View style={styles.icon}><Ionicons name="document-text" size={26} color={palette.surface} /></View><Text style={styles.title}>{content.title}</Text><Text style={styles.summary}>{content.summary}</Text><Text style={styles.version}>バージョン {content.version}</Text></View>
-        {content.sections.map((section) => <View key={section.title} style={styles.section}><Text style={styles.heading}>{section.title}</Text><Text style={styles.body}>{section.body}</Text></View>)}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  const supported = ['terms', 'privacy', 'community', 'acknowledgements'] satisfies LegalDocumentKey[];
+  const key: LegalDocumentKey = supported.includes(document as LegalDocumentKey) ? document as LegalDocumentKey : 'terms';
+  return <LegalDocumentView document={key} />;
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.canvas }, content: { padding: 20, paddingBottom: 40 },
-  hero: { borderRadius: 24, backgroundColor: palette.primary, padding: 22, marginBottom: 14 }, icon: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 15 }, title: { color: palette.surface, fontSize: 25, fontWeight: '900' }, summary: { color: '#D4E4DB', fontSize: 12, lineHeight: 19, marginTop: 7 }, version: { color: '#AFC8BA', fontSize: 9, marginTop: 12 },
-  section: { borderRadius: 20, backgroundColor: palette.surface, padding: 17, marginTop: 10 }, heading: { color: palette.ink, fontSize: 15, fontWeight: '900', marginBottom: 8 }, body: { color: palette.muted, fontSize: 12, lineHeight: 21 },
-});

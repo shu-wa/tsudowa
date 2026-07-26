@@ -13,7 +13,7 @@ export function validateUserContent(text: string) {
 export const reportReasons = [
   { value: 'harassment', label: '嫌がらせ・いじめ' },
   { value: 'hate', label: '差別・ヘイト' },
-  { value: 'sexual', label: '性的な内容' },
+  { value: 'sexual', label: '性的な内容・児童の安全' },
   { value: 'violence', label: '暴力・脅迫' },
   { value: 'spam', label: 'スパム・詐欺' },
   { value: 'privacy', label: '個人情報の侵害' },

@@ -22,7 +22,7 @@ export function KeyboardDismissBar() {
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 13, backgroundColor: palette.canvas, padding: 8, marginBottom: 9 },
   copy: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  text: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+  text: { color: palette.muted, fontSize: 13, fontWeight: '700' },
   button: { minHeight: 34, borderRadius: 10, backgroundColor: palette.primary, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  buttonText: { color: palette.surface, fontSize: 11, fontWeight: '900' },
+  buttonText: { color: palette.surface, fontSize: 13, fontWeight: '900' },
 });

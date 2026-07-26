@@ -97,8 +97,6 @@ export type AppSettings = {
   notificationsEnabled: boolean;
   onboardingCompleted: boolean;
   dateOfBirth?: string;
-  analyticsEnabled: boolean;
-  crashReportsEnabled: boolean;
   termsAcceptedAt?: string;
   privacyAcceptedAt?: string;
   communityAcceptedAt?: string;
@@ -140,7 +138,6 @@ export type OnboardingInput = {
   name: string;
   email: string;
   dateOfBirth: string;
-  analyticsEnabled: boolean;
 };
 
 export type EventTimeMode = 'start' | 'range';

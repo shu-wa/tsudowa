@@ -21,6 +21,6 @@ const styles = StyleSheet.create({
   roadTwo: { position: 'absolute', width: 480, height: 20, backgroundColor: '#F6F3E9', transform: [{ rotate: '58deg' }] },
   pin: { width: 52, height: 52, borderRadius: 26, backgroundColor: palette.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   title: { color: palette.ink, fontSize: 16, fontWeight: '900' },
-  text: { color: palette.muted, fontSize: 10, marginTop: 5 },
-  coords: { color: palette.primary, fontSize: 10, fontWeight: '700', marginTop: 7 },
+  text: { color: palette.muted, fontSize: 13, marginTop: 5 },
+  coords: { color: palette.primary, fontSize: 13, fontWeight: '700', marginTop: 7 },
 });

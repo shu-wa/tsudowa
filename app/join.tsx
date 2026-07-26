@@ -51,13 +51,13 @@ export default function JoinScreen() {
             <Text style={styles.title}>招待コードで参加</Text>
             <Text style={styles.description}>コードを確認してから、イベント名と日時を見て参加を決められます。</Text>
             <View style={styles.codeWrap}>
-              <TextInput value={code} onChangeText={updateCode} placeholder="招待コードを入力" placeholderTextColor="#A4AAA6" autoCapitalize="characters" autoCorrect={false} maxLength={64} style={styles.codeInput} selectionColor={palette.primary} returnKeyType="done" onSubmitEditing={confirmCode} />
-              {code.length > 0 && <TouchableOpacity onPress={() => updateCode('')} accessibilityLabel="招待コードを消去"><Ionicons name="close-circle" size={22} color={palette.muted} /></TouchableOpacity>}
+              <TextInput accessibilityLabel="招待コード" value={code} onChangeText={updateCode} placeholder="招待コードを入力" placeholderTextColor="#A4AAA6" autoCapitalize="characters" autoCorrect={false} maxLength={64} style={styles.codeInput} selectionColor={palette.primary} returnKeyType="done" onSubmitEditing={confirmCode} />
+              {code.length > 0 && <TouchableOpacity accessibilityRole="button" onPress={() => updateCode('')} accessibilityLabel="招待コードを消去"><Ionicons name="close-circle" size={22} color={palette.muted} /></TouchableOpacity>}
             </View>
-            <TouchableOpacity style={[styles.primaryButton, (!code.trim() || loading) && styles.buttonDisabled]} onPress={confirmCode} disabled={!code.trim() || loading} activeOpacity={0.85}>
+            <TouchableOpacity accessibilityRole="button" style={[styles.primaryButton, (!code.trim() || loading) && styles.buttonDisabled]} onPress={confirmCode} disabled={!code.trim() || loading} activeOpacity={0.85}>
               <Text style={styles.primaryText}>{loading ? '確認中…' : 'イベントを確認'}</Text><Ionicons name="arrow-forward" size={19} color={palette.surface} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.scan} onPress={() => router.push('/scan')}><Ionicons name="qr-code-outline" size={18} color={palette.primary} /><Text style={styles.scanText}>QRコードを読み取る</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.scan} onPress={() => router.push('/scan')}><Ionicons name="qr-code-outline" size={18} color={palette.primary} /><Text style={styles.scanText}>QRコードを読み取る</Text></TouchableOpacity>
           </> : <>
             <Text style={styles.title}>このイベントに参加しますか？</Text>
             <Text style={styles.description}>表示された内容を確認して、参加する場合だけボタンを押してください。</Text>
@@ -66,10 +66,10 @@ export default function JoinScreen() {
               <View style={styles.separator} />
               <View style={styles.previewRow}><Ionicons name="calendar-outline" size={21} color={palette.primary} /><View style={styles.previewCopy}><Text style={styles.previewLabel}>日時</Text><Text style={styles.previewValue}>{preview.dateLabel}</Text><Text style={styles.previewTime}>{preview.timeLabel}</Text></View></View>
             </View>
-            <TouchableOpacity style={[styles.primaryButton, loading && styles.buttonDisabled]} onPress={join} disabled={loading} activeOpacity={0.85}>
+            <TouchableOpacity accessibilityRole="button" style={[styles.primaryButton, loading && styles.buttonDisabled]} onPress={join} disabled={loading} activeOpacity={0.85}>
               <Text style={styles.primaryText}>{loading ? '参加処理中…' : '参加する'}</Text><Ionicons name="checkmark-circle-outline" size={20} color={palette.surface} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.backButton} onPress={() => setPreview(null)} disabled={loading}><Ionicons name="arrow-back" size={17} color={palette.primary} /><Text style={styles.backText}>コードを修正する</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => setPreview(null)} disabled={loading}><Ionicons name="arrow-back" size={17} color={palette.primary} /><Text style={styles.backText}>コードを修正する</Text></TouchableOpacity>
           </>}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   scan: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 19 }, scanText: { color: palette.primary, fontSize: 13, fontWeight: '700', marginLeft: 7 },
   previewCard: { backgroundColor: palette.surface, borderRadius: 22, paddingHorizontal: 18, marginBottom: 16, ...shadow },
   previewRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 18 }, previewCopy: { flex: 1, marginLeft: 13 },
-  previewLabel: { color: palette.muted, fontSize: 10, fontWeight: '700', marginBottom: 4 }, previewValue: { color: palette.ink, fontSize: 16, lineHeight: 23, fontWeight: '800' }, previewTime: { color: palette.primary, fontSize: 13, fontWeight: '700', marginTop: 4 },
+  previewLabel: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 4 }, previewValue: { color: palette.ink, fontSize: 16, lineHeight: 23, fontWeight: '800' }, previewTime: { color: palette.primary, fontSize: 13, fontWeight: '700', marginTop: 4 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: palette.line },
   backButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18 }, backText: { color: palette.primary, fontSize: 13, fontWeight: '700', marginLeft: 6 },
 });

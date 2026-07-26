@@ -25,6 +25,12 @@ export default function RootLayout() {
           <Stack.Screen name="reset-password" options={{ title: 'パスワード再設定' }} />
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
           <Stack.Screen name="legal/[document]" options={{ title: 'ポリシー', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="terms" options={{ title: '利用規約', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="privacy" options={{ title: 'プライバシーポリシー', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="community-guidelines" options={{ title: 'コミュニティガイドライン', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="account-deletion" options={{ title: 'アカウント削除', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="support" options={{ title: 'サポート', headerBackTitle: '戻る' }} />
+          <Stack.Screen name="acknowledgements" options={{ title: '第三者ソフトウェア', headerBackTitle: '戻る' }} />
           <Stack.Screen name="privacy-center" options={{ title: 'プライバシーセンター', headerBackTitle: 'マイページ' }} />
           <Stack.Screen name="safety/index" options={{ title: '安全センター', headerBackTitle: 'マイページ' }} />
           <Stack.Screen name="safety/report" options={{ title: '通報する', presentation: 'modal' }} />
@@ -57,9 +63,9 @@ function NavigationGuard() {
   useEffect(() => {
     if (!isHydrated || isAuthLoading) return;
     const first = segments[0];
-    const legalRoute = first === 'legal';
+    const publicDocumentRoute = ['legal', 'terms', 'privacy', 'community-guidelines', 'account-deletion', 'support', 'acknowledgements'].includes(first ?? '');
     const authCallbackRoute = first === 'reset-password';
-    if (isConfigured && !session && first !== 'auth' && !legalRoute && !authCallbackRoute) {
+    if (isConfigured && !session && first !== 'auth' && !publicDocumentRoute && !authCallbackRoute) {
       router.replace('/auth');
       return;
     }
@@ -67,7 +73,7 @@ function NavigationGuard() {
       router.replace(settings.onboardingCompleted ? '/' : '/onboarding');
       return;
     }
-    const publicRoute = first === 'onboarding' || first === 'legal' || first === 'auth' || first === 'reset-password';
+    const publicRoute = first === 'onboarding' || publicDocumentRoute || first === 'auth' || first === 'reset-password';
     if (!settings.onboardingCompleted && !publicRoute) router.replace('/onboarding');
     if (settings.onboardingCompleted && first === 'onboarding') router.replace('/');
   }, [isAuthLoading, isConfigured, isHydrated, segments, session, settings.onboardingCompleted]);

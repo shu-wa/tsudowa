@@ -79,6 +79,7 @@ else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください')
   'assets/images/brand-icon-foreground.png',
   'assets/images/brand-icon-monochrome.png',
   'assets/images/brand-favicon.png',
+  'app.config.js',
   'app/privacy.tsx',
   'app/terms.tsx',
   'app/community-guidelines.tsx',
@@ -92,6 +93,13 @@ else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください')
   'supabase/migrations/202607260006_media_leave_archive.sql',
   'supabase/migrations/202607260007_preserve_attendance_on_rejoin.sql',
 ].forEach((file) => exists(file) ? pass(`${file} を確認`) : fail(`${file} がありません`));
+
+const dynamicAppConfig = read('app.config.js');
+if (/GOOGLE_MAPS_API_KEY/.test(dynamicAppConfig) && /googleMaps:\s*\{\s*apiKey/.test(dynamicAppConfig)) {
+  pass('AndroidビルドへGoogle Maps APIキーを渡す設定を確認');
+} else {
+  fail('AndroidビルドへGoogle Maps APIキーを渡す設定が不足しています');
+}
 
 const deleteAccountSource = read('supabase/functions/delete-account/index.ts');
 if (

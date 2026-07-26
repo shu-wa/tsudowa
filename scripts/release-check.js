@@ -89,7 +89,20 @@ else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください')
   'supabase/functions/delete-account/index.ts',
   'supabase/functions/export-account/index.ts',
   'supabase/migrations/202607260002_chat_images.sql',
+  'supabase/migrations/202607260006_media_leave_archive.sql',
+  'supabase/migrations/202607260007_preserve_attendance_on_rejoin.sql',
 ].forEach((file) => exists(file) ? pass(`${file} を確認`) : fail(`${file} がありません`));
+
+const deleteAccountSource = read('supabase/functions/delete-account/index.ts');
+if (
+  /from\('chat-media'\)\.remove/.test(deleteAccountSource)
+  && /from\('app-media'\)\.remove/.test(deleteAccountSource)
+  && /auth\.admin\.deleteUser/.test(deleteAccountSource)
+) {
+  pass('アカウント削除APIのチャット・プロフィール・イベント画像削除を確認');
+} else {
+  fail('アカウント削除APIで関連画像を削除する処理が不足しています');
+}
 
 const privacyCopy = read('constants/legal.ts');
 if (/写真ライブラリ/.test(privacyCopy) && /期限付きURL/.test(privacyCopy) && /共有写真/.test(privacyCopy)) {

@@ -19,10 +19,20 @@ Deno.serve(async (request) => {
 
   const userId = userData.user.id;
 
-  // 主催イベントは所有者なしで存続できないため、関連データとともに先に削除します。
-  const { data: ownedEvents, error: ownedEventsError } = await admin.from('events').select('id').eq('owner_id', userId);
+  // The user profile and owned events can reference private app-media objects.
+  // Resolve those paths before deleting database rows so account deletion does
+  // not leave user-generated images behind.
+  const [{ data: profile, error: profileError }, { data: ownedEvents, error: ownedEventsError }] = await Promise.all([
+    admin.from('profiles').select('avatar_path').eq('id', userId).maybeSingle(),
+    admin.from('events').select('id, cover_image_path').eq('owner_id', userId),
+  ]);
+  if (profileError) return failure('profile_lookup_failed');
   if (ownedEventsError) return failure('owned_events_lookup_failed');
   const ownedEventIds = (ownedEvents ?? []).map((event) => event.id);
+  const appMediaPaths = [
+    profile?.avatar_path,
+    ...(ownedEvents ?? []).map((event) => event.cover_image_path),
+  ].filter(Boolean) as string[];
 
   const authoredMediaQuery = admin.from('messages').select('image_path').eq('author_id', userId).not('image_path', 'is', null);
   const ownedEventMediaQuery = ownedEventIds.length
@@ -35,7 +45,13 @@ Deno.serve(async (request) => {
     const { error: mediaDeleteError } = await admin.storage.from('chat-media').remove(mediaPaths);
     if (mediaDeleteError) return failure('media_delete_failed');
   }
+  if (appMediaPaths.length) {
+    const { error: appMediaDeleteError } = await admin.storage.from('app-media').remove([...new Set(appMediaPaths)]);
+    if (appMediaDeleteError) return failure('app_media_delete_failed');
+  }
 
+  // Owned events cannot remain without their owner, so delete them and their
+  // related database records before deleting the authentication user.
   if (ownedEventIds.length) {
     const { error: ownedEventDeleteError } = await admin.from('events').delete().in('id', ownedEventIds);
     if (ownedEventDeleteError) return failure('owned_events_delete_failed');

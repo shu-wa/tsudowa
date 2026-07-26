@@ -6,12 +6,12 @@ import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SupportScreen() {
-  const contact = async (subject: string) => {
+  const contact = async (subject: string, body = '') => {
     if (!legalConfig.supportEmail) {
       Alert.alert('連絡先を確認できません', 'ログイン後、安全センターまたはプライバシーセンターをご利用ください。');
       return;
     }
-    await Linking.openURL(`mailto:${legalConfig.supportEmail}?subject=${encodeURIComponent(subject)}`);
+    await Linking.openURL(`mailto:${legalConfig.supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
   };
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -22,6 +22,8 @@ export default function SupportScreen() {
           <Action icon="mail-outline" title="一般的な問い合わせ" text="操作方法、不具合、改善提案" onPress={() => contact('Do Eventer お問い合わせ')} />
           <Action icon="shield-checkmark-outline" title="安全・児童保護の連絡" text="危険な行為、児童の搾取、緊急性の高い問題" onPress={() => contact('Do Eventer 安全・児童保護に関する連絡')} />
           <Action icon="lock-closed-outline" title="プライバシーの問い合わせ" text="データの確認、訂正、削除" onPress={() => contact('Do Eventer プライバシーに関する問い合わせ')} />
+          <Action icon="flag-outline" title="違法コンテンツを通知" text="対象、理由、確認できる情報を運営へ通知" onPress={() => contact('Do Eventer 違法コンテンツの通知', '対象のイベント・利用者・メッセージ:\n違法と考える理由:\n確認に必要な補足情報:\n通知結果を受け取る連絡先:')} />
+          <Action icon="refresh-outline" title="モデレーション判断へ異議申立て" text="削除、制限、停止の理由確認と再審査" onPress={() => contact('Do Eventer モデレーション判断への異議申立て', '対象のアカウント・イベント・メッセージ:\n通知された判断:\n再審査を求める理由:')} />
         </View>
         <Text style={styles.contact}>運営者: {legalConfig.operatorName || 'Do Eventer'}{'\n'}連絡先: {legalConfig.supportEmail || 'アプリ内サポート'}</Text>
         <Text style={styles.sectionTitle}>公開文書</Text>

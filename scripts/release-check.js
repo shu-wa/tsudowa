@@ -38,6 +38,12 @@ if (process.env.RELEASE_BRAND_APPROVED !== 'true') {
   pass('名称・商標確認の完了フラグを確認');
 }
 
+if (process.env.RELEASE_GLOBAL_COMPLIANCE_APPROVED !== 'true') {
+  fail('RELEASE_GLOBAL_COMPLIANCE_APPROVED=true がありません（提供予定国の法務・運用確認後に設定）');
+} else {
+  pass('提供予定国の法務・運用確認フラグを確認');
+}
+
 const appConfig = JSON.parse(read('app.json')).expo;
 if (appConfig.icon === './assets/images/brand-icon.png') pass('独自アプリアイコンを参照');
 else fail('app.json が独自アプリアイコンを参照していません');

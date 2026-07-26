@@ -15,6 +15,7 @@
 5. AndroidのGoogle Maps APIキーを、パッケージ名とリリース署名SHA-1で制限して設定する
 6. TestFlightとGoogle Play内部テストで、実機の権限、地図、削除、招待、通報を確認する
 7. App Store ConnectとPlay Consoleの申告、スクリーンショット、審査用アカウントを登録する
+8. 提供予定国ごとにプライバシー、UGC、消費者保護の運用を確認し、`RELEASE_GLOBAL_COMPLIANCE_APPROVED=true` を設定する
 
 `pnpm release:check` は、上記の設定不足をリリース阻害項目として検出します。
 
@@ -62,6 +63,21 @@
 - 通信はHTTPS、アカウント削除とデータ書き出しを提供
 
 Play Consoleでは主目的に合う「イベント」カテゴリを検討します。チャット機能を隠さず、コンテンツレーティングでは利用者間の交流とUGCを正確に申告します。対象年齢は16歳以上とし、子どもをターゲットにしません。
+
+## 世界提供に向けた追加確認
+
+- GDPR Article 13: https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679
+- EU Digital Services Actの利用者権利: https://digital-strategy.ec.europa.eu/en/factpages/user-rights-under-digital-services-act
+- FTC COPPA FAQ: https://www.ftc.gov/business-guidance/resources/complying-coppa-frequently-asked-questions
+
+対応内容:
+
+- プライバシーポリシーへ処理の法的根拠、任意・必須情報、国外移転、監督機関への苦情、完全自動化された重大判断を行わないことを追加
+- 生年月日は16歳以上だけを選ばせる形式にせず、端末標準UIで実際の生年月日を中立的に入力した後、16歳未満の登録を拒否
+- 公開サポートへ違法コンテンツ通知とモデレーション判断への異議申立て窓口を追加
+- 利用規約へ通知の処理、判断結果、再審査の仕組みを追加
+
+世界同時公開を自動的に法的適合とみなすことはできません。提供予定国、運営者の拠点、利用者規模、処理するデータ、現地代理人やデータ保護責任者の要否、Supabase等との契約・国外移転手段、モデレーション判断の通知・異議申立て運用を確認します。確認完了まで `RELEASE_GLOBAL_COMPLIANCE_APPROVED=true` にしません。
 
 ## 知的財産権の一次監査
 
@@ -173,4 +189,3 @@ Suggested flow:
 Location, camera, calendar and notification permissions are requested only when the corresponding feature is used.
 If location access is denied, venue and address can still be entered manually.
 ```
-

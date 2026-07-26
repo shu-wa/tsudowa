@@ -1,16 +1,20 @@
 import { getCollectionCategory } from '@/constants/collections';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { useAuth } from '@/context/auth-context';
+import { isEventManager } from '@/lib/event-permissions';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CollectionDetailScreen() {
   const { id, collectionId } = useLocalSearchParams<{ id: string; collectionId: string }>();
-  const { findEvent, toggleCollectionPayment } = useEvents();
+  const { findEvent, profile, toggleCollectionPayment } = useEvents();
+  const { user } = useAuth();
   const event = findEvent(id);
   const collection = event?.collections.find((item) => item.id === collectionId);
+  const canManagePayments = isEventManager(event, user?.id, profile.name);
 
   if (!event || !collection) {
     return <SafeAreaView style={styles.empty}><Ionicons name="receipt-outline" size={35} color={palette.muted} /><Text style={styles.emptyTitle}>集金項目が見つかりません</Text><TouchableOpacity onPress={() => router.back()}><Text style={styles.backText}>戻る</Text></TouchableOpacity></SafeAreaView>;
@@ -21,13 +25,17 @@ export default function CollectionDetailScreen() {
   const paidAmount = collection.shares.filter((share) => share.paid).reduce((sum, share) => sum + share.amount, 0);
   const paidCount = collection.shares.filter((share) => share.paid).length;
   const progress = collection.totalAmount ? (paidAmount / collection.totalAmount) * 100 : 0;
+  const togglePayment = async (participantId: string) => {
+    const error = await toggleCollectionPayment(event.id, collection.id, participantId);
+    if (error) Alert.alert('支払状態を変更できません', error);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { backgroundColor: category.background }]}>
           <View style={[styles.heroIcon, { backgroundColor: category.color }]}><Ionicons name={category.icon} size={28} color={palette.surface} /></View>
-          <View style={styles.heroCopy}><Text style={[styles.category, { color: category.color }]}>{category.label}</Text><Text style={styles.title}>{collection.title}</Text><Text style={styles.split}>{collection.splitMethod === 'equal' ? '均等割り' : '個別金額'} · {collection.shares.length}人が対象</Text></View>
+          <View style={styles.heroCopy}><Text style={[styles.category, { color: category.color }]}>{category.label}</Text><Text style={styles.title}>{collection.title}</Text><Text style={styles.split}>{collection.autoAssignNewMembers ? `1人あたり ¥${(collection.defaultShareAmount ?? 0).toLocaleString()}` : collection.splitMethod === 'equal' ? '均等割り' : '個別金額'} · {collection.shares.length}人が対象</Text></View>
         </View>
 
         <View style={styles.summary}>
@@ -42,15 +50,15 @@ export default function CollectionDetailScreen() {
           <View style={styles.separator} />
           <InfoRow icon="calendar-outline" label="支払期限" value={collection.dueDate || '期限なし'} />
           <View style={styles.separator} />
-          <InfoRow icon="git-compare-outline" label="分け方" value={collection.splitMethod === 'equal' ? '対象者で均等割り' : '参加者ごとに個別指定'} />
+          <InfoRow icon="git-compare-outline" label="分け方" value={collection.autoAssignNewMembers ? '参加者全員へ1人分ずつ自動追加' : collection.splitMethod === 'equal' ? '対象者で均等割り' : '参加者ごとに個別指定'} />
         </View>
 
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitleInline}>対象メンバー</Text><Text style={styles.tapHint}>タップで支払状態を変更</Text></View>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitleInline}>対象メンバー</Text><Text style={styles.tapHint}>{canManagePayments ? 'タップで支払状態を変更' : '主催者・共同主催者のみ変更可能'}</Text></View>
         <View style={styles.members}>
           {collection.shares.map((share, index) => {
             const person = event.participants.find((participant) => participant.id === share.participantId);
             if (!person) return null;
-            return <TouchableOpacity key={share.participantId} style={[styles.memberRow, index === collection.shares.length - 1 && styles.memberRowLast]} onPress={() => toggleCollectionPayment(event.id, collection.id, share.participantId)} activeOpacity={0.7}>
+            return <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: !canManagePayments }} key={share.participantId} style={[styles.memberRow, index === collection.shares.length - 1 && styles.memberRowLast]} onPress={() => togglePayment(share.participantId)} activeOpacity={canManagePayments ? 0.7 : 1} disabled={!canManagePayments}>
               <View style={[styles.avatar, { backgroundColor: person.avatarColor }]}><Text style={styles.initials}>{person.initials}</Text></View>
               <View style={styles.memberCopy}><View style={styles.memberNameRow}><Text style={styles.memberName}>{person.name}</Text>{person.id === collection.paidByParticipantId && <View style={styles.payerBadge}><Text style={styles.payerBadgeText}>立替者</Text></View>}</View><Text style={styles.memberSub}>{share.paidAt || (share.paid ? '確認済み' : '支払い待ち')}</Text></View>
               <View style={styles.memberRight}><Text style={styles.memberAmount}>¥{share.amount.toLocaleString()}</Text><View style={[styles.status, share.paid ? styles.statusPaid : styles.statusUnpaid]}><Ionicons name={share.paid ? 'checkmark' : 'time-outline'} size={11} color={share.paid ? palette.primary : palette.danger} /><Text style={[styles.statusText, !share.paid && styles.statusTextUnpaid]}>{share.paid ? '支払済み' : '未払い'}</Text></View></View>
@@ -59,7 +67,7 @@ export default function CollectionDetailScreen() {
         </View>
 
         {collection.note && <><Text style={styles.sectionTitle}>メモ</Text><View style={styles.noteCard}><Ionicons name="document-text-outline" size={20} color={category.color} /><Text style={styles.note}>{collection.note}</Text></View></>}
-        <View style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={palette.muted} /><Text style={styles.noticeText}>支払い方法は現金や各種送金サービスから自由に選べます。この画面では支払い状況だけを記録します。</Text></View>
+        <View style={styles.notice}><Ionicons name="information-circle-outline" size={18} color={palette.muted} /><Text style={styles.noticeText}>支払い方法は現金や各種送金サービスから自由に選べます。支払状態は主催者・共同主催者が確認して更新し、参加者全員へ共有されます。</Text></View>
       </ScrollView>
     </SafeAreaView>
   );

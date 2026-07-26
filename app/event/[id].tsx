@@ -2,6 +2,8 @@ import { palette, shadow } from '@/constants/theme';
 import { getCollectionCategory } from '@/constants/collections';
 import { getEventDisplayStatus } from '@/lib/event-display';
 import { useEvents } from '@/context/event-context';
+import { useAuth } from '@/context/auth-context';
+import { isEventManager } from '@/lib/event-permissions';
 import { ScheduleItem } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
@@ -18,9 +20,11 @@ const scheduleIcon: Record<ScheduleItem['type'], ComponentProps<typeof Ionicons>
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { findEvent, createInviteCode, getUnreadMessageCount } = useEvents();
+  const { findEvent, createInviteCode, getUnreadMessageCount, profile } = useEvents();
+  const { user } = useAuth();
   const event = findEvent(id);
   const [tab, setTab] = useState<Tab>('概要');
+  const canManageCollections = isEventManager(event, user?.id, profile.name);
 
   if (!event) {
     return <SafeAreaView style={styles.empty}><Ionicons name="calendar-outline" size={40} color={palette.muted} /><Text style={styles.emptyTitle}>イベントが見つかりません</Text><TouchableOpacity onPress={() => router.replace('/')}><Text style={styles.emptyLink}>ホームへ戻る</Text></TouchableOpacity></SafeAreaView>;
@@ -117,7 +121,7 @@ export default function EventDetailScreen() {
                 <View style={[styles.collectionIcon, { backgroundColor: category.background }]}><Ionicons name={category.icon} size={22} color={category.color} /></View>
                 <View style={styles.collectionCopy}>
                   <View style={styles.collectionTop}><Text style={styles.collectionTitle} numberOfLines={1}>{collection.title}</Text><Text style={styles.collectionAmount}>¥{collection.totalAmount.toLocaleString()}</Text></View>
-                  <Text style={styles.collectionPayer} numberOfLines={1}>{payer?.name ?? '未設定'}さんが支払い · {category.label}</Text>
+                  <Text style={styles.collectionPayer} numberOfLines={1}>{collection.autoAssignNewMembers ? `1人 ¥${(collection.defaultShareAmount ?? 0).toLocaleString()} · 全参加者へ自動追加` : `${payer?.name ?? '未設定'}さんが支払い · ${category.label}`}</Text>
                   <View style={styles.collectionProgress}><View style={[styles.collectionProgressDone, { width: `${collection.totalAmount ? (collectionPaid / collection.totalAmount) * 100 : 0}%`, backgroundColor: category.color }]} /></View>
                   <View style={styles.collectionBottom}><Text style={styles.collectionStatus}>¥{collectionPaid.toLocaleString()} 回収済み</Text><Text style={styles.collectionStatus}>{paidCount}/{collection.shares.length}人</Text></View>
                 </View>
@@ -125,7 +129,9 @@ export default function EventDetailScreen() {
               </TouchableOpacity>;
             })}
           </View>
-          <TouchableOpacity style={styles.addCollectionButton} onPress={() => router.push(`/event/${event.id}/collection/new`)}><View style={styles.addCollectionIcon}><Ionicons name="add" size={21} color={palette.surface} /></View><View style={styles.addCollectionCopy}><Text style={styles.addCollectionTitle}>集金項目を追加</Text><Text style={styles.addCollectionText}>参加費、食事代、立替えなど</Text></View><Ionicons name="arrow-forward" size={19} color={palette.surface} /></TouchableOpacity>
+          {canManageCollections
+            ? <TouchableOpacity style={styles.addCollectionButton} onPress={() => router.push(`/event/${event.id}/collection/new`)}><View style={styles.addCollectionIcon}><Ionicons name="add" size={21} color={palette.surface} /></View><View style={styles.addCollectionCopy}><Text style={styles.addCollectionTitle}>集金項目を追加</Text><Text style={styles.addCollectionText}>参加費、食事代、立替えなど</Text></View><Ionicons name="arrow-forward" size={19} color={palette.surface} /></TouchableOpacity>
+            : <View style={styles.collectionReadonly}><Ionicons name="lock-closed-outline" size={17} color={palette.muted} /><Text style={styles.collectionReadonlyText}>集金の追加と支払状態の変更は主催者・共同主催者が行います</Text></View>}
         </>}
       </ScrollView>
     </SafeAreaView>
@@ -174,5 +180,7 @@ const styles = StyleSheet.create({
   collectionPayer: { color: palette.muted, fontSize: 12, marginBottom: 9 }, collectionProgress: { height: 5, borderRadius: 3, backgroundColor: '#E8E9E4', overflow: 'hidden' }, collectionProgressDone: { height: '100%', borderRadius: 3 },
   collectionBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }, collectionStatus: { color: palette.muted, fontSize: 11, fontWeight: '600' },
   collectionEmpty: { alignItems: 'center', borderRadius: 20, backgroundColor: palette.surface, padding: 28 }, collectionEmptyTitle: { color: palette.ink, fontSize: 14, fontWeight: '800', marginTop: 10 }, collectionEmptyText: { color: palette.muted, fontSize: 13, marginTop: 4 },
+  collectionReadonly: { marginHorizontal: 20, marginTop: 14, borderRadius: 16, backgroundColor: palette.surface, padding: 13, flexDirection: 'row', alignItems: 'center' },
+  collectionReadonlyText: { flex: 1, marginLeft: 8, color: palette.muted, fontSize: 12, lineHeight: 18 },
   addCollectionButton: { marginHorizontal: 20, marginTop: 12, minHeight: 66, borderRadius: 20, backgroundColor: palette.primary, padding: 12, flexDirection: 'row', alignItems: 'center' }, addCollectionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' }, addCollectionCopy: { flex: 1, marginLeft: 11 }, addCollectionTitle: { color: palette.surface, fontSize: 13, fontWeight: '800', marginBottom: 3 }, addCollectionText: { color: '#C9D9D0', fontSize: 12 },
 });

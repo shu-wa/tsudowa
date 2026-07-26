@@ -4,6 +4,7 @@ import { syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
 import { confirmCloudDateCandidate, createCloudEvent, createCloudInvite, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule } from '@/lib/cloud-events';
 import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
+import { isEventManager } from '@/lib/event-permissions';
 import { useAuth } from '@/context/auth-context';
 import {
   AppSettings,
@@ -65,7 +66,7 @@ type EventContextValue = {
   addMessage: (eventId: string, text: string, image?: ChatImageInput) => Promise<string | null>;
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
-  toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => void;
+  toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => Promise<string | null>;
   updateProfile: (profile: UserProfile) => void;
   completeOnboarding: (input: OnboardingInput) => void;
   setNotificationsEnabled: (enabled: boolean) => Promise<string | null>;
@@ -199,6 +200,8 @@ export function EventProvider({ children }: PropsWithChildren) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'date_candidates' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'date_candidate_votes' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collections' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_shares' }, refresh)
       .subscribe();
     return () => { active = false; if (client && channel) void client.removeChannel(channel); };
   }, [isConfigured, isHydrated, user]);
@@ -607,11 +610,11 @@ export function EventProvider({ children }: PropsWithChildren) {
       void syncCloudCollection(eventId, collection);
       return collection;
     },
-    toggleCollectionPayment: (eventId, collectionId, participantId) => {
+    toggleCollectionPayment: async (eventId, collectionId, participantId) => {
       const targetEvent = events.find((event) => event.id === eventId);
-      const currentMember = user ? targetEvent?.participants.find((participant) => participant.id === user.id) : undefined;
-      if (supabase && participantId !== user?.id && !['主催者', '共同主催者'].includes(currentMember?.role ?? '')) return;
+      if (!isEventManager(targetEvent, user?.id, profile.name)) return '支払状態を変更できるのは主催者・共同主催者だけです。';
       const currentShare = targetEvent?.collections.find((collection) => collection.id === collectionId)?.shares.find((share) => share.participantId === participantId);
+      if (!currentShare) return '対象の支払い情報が見つかりません。';
       const nextPaid = !(currentShare?.paid ?? false);
       setEvents((current) => current.map((event) => event.id !== eventId ? event : {
         ...event,
@@ -624,7 +627,19 @@ export function EventProvider({ children }: PropsWithChildren) {
           }),
         }),
       }));
-      void syncCloudPayment(collectionId, participantId, nextPaid);
+      try {
+        await syncCloudPayment(collectionId, participantId, nextPaid);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          collections: event.collections.map((collection) => collection.id !== collectionId ? collection : {
+            ...collection,
+            shares: collection.shares.map((share) => share.participantId !== participantId ? share : currentShare),
+          }),
+        }));
+        return '支払状態を更新できませんでした。通信状態と権限を確認してください。';
+      }
     },
     addEvent: (input) => {
       const id = Crypto.randomUUID();
@@ -666,6 +681,8 @@ export function EventProvider({ children }: PropsWithChildren) {
           paidByParticipantId: 'me',
           totalAmount: input.initialFee,
           splitMethod: 'equal',
+          autoAssignNewMembers: true,
+          defaultShareAmount: input.initialFee,
           note: 'イベント作成時に登録した参加費です。',
           shares: [{ participantId: 'me', amount: input.initialFee, paid: false }],
         }] : [],

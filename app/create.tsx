@@ -127,7 +127,7 @@ export default function CreateEventScreen() {
             <View style={styles.selectedPlace}><Ionicons name="location" size={18} color={palette.accent} /><View style={styles.selectedCopy}><Text style={styles.selectedName}>{hasSelectedCoordinates ? location || '設定した場所' : mapSelectionEmpty}</Text><Text style={styles.selectedAddress}>{hasSelectedCoordinates ? address || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : '初期表示：東京駅周辺'}</Text></View></View>
           </View> : null}
           <FormField label="イベントの説明" hint="任意" icon="document-text-outline" placeholder="持ち物や連絡事項を書きましょう" value={description} onChangeText={setDescription} multiline />
-          <FormField label="最初の参加費" hint="他の集金は作成後に追加可能" icon="wallet-outline" placeholder="0" value={initialFee} onChangeText={setInitialFee} keyboardType="number-pad" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} blurOnSubmit />
+          <FormField label="1人あたりの参加費" hint="後から参加した人にも自動で追加" icon="wallet-outline" placeholder="0" value={initialFee} onChangeText={setInitialFee} keyboardType="number-pad" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} blurOnSubmit />
 
           <View style={styles.nextInfo}>
             <Text style={styles.nextTitle}>作成後に設定できること</Text>

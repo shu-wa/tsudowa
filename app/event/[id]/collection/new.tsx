@@ -3,6 +3,8 @@ import { KeyboardDismissBar } from '@/components/keyboard-dismiss-bar';
 import { NativeDateField } from '@/components/native-date-picker';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { useAuth } from '@/context/auth-context';
+import { isEventManager } from '@/lib/event-permissions';
 import { CollectionCategory, SplitMethod } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -12,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NewCollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { findEvent, addCollection } = useEvents();
+  const { findEvent, addCollection, profile } = useEvents();
+  const { user } = useAuth();
   const event = findEvent(id);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<CollectionCategory>('entry');
@@ -31,6 +34,7 @@ export default function NewCollectionScreen() {
   const customTotal = useMemo(() => includedIds.reduce((sum, participantId) => sum + (Number(customAmounts[participantId]) || 0), 0), [customAmounts, includedIds]);
 
   if (!event) return <SafeAreaView style={styles.empty}><Text>イベントが見つかりません</Text></SafeAreaView>;
+  if (!isEventManager(event, user?.id, profile.name)) return <SafeAreaView style={styles.empty}><Ionicons name="lock-closed-outline" size={32} color={palette.muted} /><Text style={styles.permissionTitle}>集金を追加できません</Text><Text style={styles.permissionText}>集金を追加できるのは主催者・共同主催者だけです。</Text><TouchableOpacity onPress={() => router.back()}><Text style={styles.permissionBack}>戻る</Text></TouchableOpacity></SafeAreaView>;
 
   const toggleParticipant = (participantId: string) => {
     setIncludedIds((current) => current.includes(participantId) ? current.filter((item) => item !== participantId) : [...current, participantId]);
@@ -105,7 +109,7 @@ function FieldLabel({ label, hint, required }: { label: string; hint?: string; r
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 }, empty: { flex: 1, alignItems: 'center', justifyContent: 'center' }, content: { padding: 20, paddingBottom: 28 },
+  safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 }, empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }, permissionTitle: { color: palette.ink, fontSize: 17, fontWeight: '800', marginTop: 12 }, permissionText: { color: palette.muted, fontSize: 13, textAlign: 'center', marginTop: 6 }, permissionBack: { color: palette.primary, fontSize: 14, fontWeight: '800', marginTop: 18 }, content: { padding: 20, paddingBottom: 28 },
   intro: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.primarySoft, borderRadius: 19, padding: 14, marginBottom: 24 }, introIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' }, introCopy: { flex: 1, marginLeft: 11 }, introTitle: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 3 }, introText: { color: palette.muted, fontSize: 13, lineHeight: 15 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2, marginBottom: 8 }, labelLeft: { flexDirection: 'row', alignItems: 'center' }, label: { color: palette.ink, fontSize: 13, fontWeight: '800' }, required: { color: palette.accent, fontSize: 11, fontWeight: '800', backgroundColor: palette.accentSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginLeft: 6 }, hint: { color: palette.muted, fontSize: 12 },
   inputWrap: { minHeight: 54, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 19 }, input: { flex: 1, color: palette.ink, fontSize: 14, marginLeft: 10, paddingVertical: 0 },

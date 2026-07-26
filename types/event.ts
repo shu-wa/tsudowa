@@ -58,6 +58,8 @@ export type CollectionItem = {
   paidByParticipantId: string;
   totalAmount: number;
   splitMethod: SplitMethod;
+  autoAssignNewMembers?: boolean;
+  defaultShareAmount?: number;
   dueDate?: string;
   note?: string;
   shares: CollectionShare[];

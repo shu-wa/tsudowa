@@ -9,7 +9,7 @@ type CloudProfile = { id: string; display_name: string; avatar_color: string };
 type CloudMember = { user_id: string; role: 'host' | 'cohost' | 'member'; status: string; attendance_label?: string; chat_read_at?: string; joined_at: string; profile?: CloudProfile };
 type CloudSchedule = { id: string; starts_at: string; title: string; note?: string; item_type: 'move' | 'activity' | 'food' | 'stay' };
 type CloudShare = { user_id: string; amount: number | string; paid: boolean; paid_at?: string };
-type CloudCollection = { id: string; title: string; category: CollectionItem['category']; paid_by_user_id: string; total_amount: number | string; split_method: CollectionItem['splitMethod']; due_date?: string; note?: string; shares?: CloudShare[] };
+type CloudCollection = { id: string; title: string; category: CollectionItem['category']; paid_by_user_id: string; total_amount: number | string; split_method: CollectionItem['splitMethod']; auto_assign_new_members?: boolean; default_share_amount?: number | string; due_date?: string; note?: string; shares?: CloudShare[] };
 type CloudMessage = {
   id: string;
   author_id: string;
@@ -110,7 +110,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
         votes: (candidate.votes ?? []).map((vote) => ({ participantId: vote.user_id, choice: vote.choice })),
       })),
       schedule: (event.schedule ?? []).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).map((item) => ({ id: item.id, day: new Date(item.starts_at).toLocaleDateString('ja-JP'), time: new Date(item.starts_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }), title: item.title, note: item.note, type: item.item_type })),
-      collections: (event.collections ?? []).map((collection) => ({ id: collection.id, title: collection.title, category: collection.category, paidByParticipantId: collection.paid_by_user_id, totalAmount: Number(collection.total_amount), splitMethod: collection.split_method, dueDate: collection.due_date, note: collection.note, shares: (collection.shares ?? []).map((share) => ({ participantId: share.user_id, amount: Number(share.amount), paid: share.paid, paidAt: share.paid_at ? new Date(share.paid_at).toLocaleDateString('ja-JP') : undefined })) })),
+      collections: (event.collections ?? []).map((collection) => ({ id: collection.id, title: collection.title, category: collection.category, paidByParticipantId: collection.paid_by_user_id, totalAmount: Number(collection.total_amount), splitMethod: collection.split_method, autoAssignNewMembers: collection.auto_assign_new_members ?? false, defaultShareAmount: collection.default_share_amount == null ? undefined : Number(collection.default_share_amount), dueDate: collection.due_date, note: collection.note, shares: (collection.shares ?? []).map((share) => ({ participantId: share.user_id, amount: Number(share.amount), paid: share.paid, paidAt: share.paid_at ? new Date(share.paid_at).toLocaleDateString('ja-JP') : undefined })) })),
       messages: (event.messages ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((message) => ({
         id: message.id,
         authorId: message.author_id,
@@ -263,18 +263,22 @@ export async function syncCloudCollection(eventId: string, collection: Collectio
   if (!supabase || !isCloudId(eventId) || !isCloudId(collection.id)) return;
   const { data } = await supabase.auth.getUser(); if (!data.user) return;
   const payerId = isCloudId(collection.paidByParticipantId) ? collection.paidByParticipantId : data.user.id;
-  const { error } = await supabase.from('collections').insert({ id: collection.id, event_id: eventId, title: collection.title, category: collection.category, paid_by_user_id: payerId, total_amount: collection.totalAmount, currency: 'JPY', split_method: collection.splitMethod, due_date: collection.dueDate, note: collection.note, created_by: data.user.id });
+  const { error } = await supabase.from('collections').insert({ id: collection.id, event_id: eventId, title: collection.title, category: collection.category, paid_by_user_id: payerId, total_amount: collection.totalAmount, currency: 'JPY', split_method: collection.splitMethod, auto_assign_new_members: collection.autoAssignNewMembers ?? false, default_share_amount: collection.defaultShareAmount, due_date: collection.dueDate, note: collection.note, created_by: data.user.id });
   if (error) throw error;
   const shares = collection.shares
     .map((share) => ({ ...share, cloudUserId: isCloudId(share.participantId) ? share.participantId : share.participantId === 'me' ? data.user!.id : null }))
     .filter((share) => Boolean(share.cloudUserId))
     .map((share) => ({ collection_id: collection.id, user_id: share.cloudUserId!, amount: share.amount, paid: share.paid, paid_at: share.paid ? new Date().toISOString() : null, confirmed_by: share.paid ? data.user!.id : null }));
-  if (shares.length) await supabase.from('collection_shares').insert(shares);
+  if (shares.length) {
+    const { error: sharesError } = await supabase.from('collection_shares').upsert(shares, { onConflict: 'collection_id,user_id', ignoreDuplicates: true });
+    if (sharesError) throw sharesError;
+  }
 }
 
 export async function syncCloudPayment(collectionId: string, participantId: string, paid: boolean) {
   if (!supabase || !isCloudId(collectionId) || !isCloudId(participantId)) return;
-  await supabase.rpc('set_collection_share_paid', { target_collection_id: collectionId, target_user_id: participantId, is_paid: paid });
+  const { error } = await supabase.rpc('set_collection_share_paid', { target_collection_id: collectionId, target_user_id: participantId, is_paid: paid });
+  if (error) throw error;
 }
 
 export async function syncCloudAttendance(eventId: string, attendance: AttendanceChoice) {

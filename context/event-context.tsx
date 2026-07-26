@@ -83,7 +83,7 @@ type EventContextValue = {
   findEvent: (id: string) => EventItem | undefined;
   joinByCode: (code: string) => EventItem | undefined;
   previewEventByCode: (code: string) => Promise<{ preview?: EventInvitePreview; error?: string }>;
-  joinEventByCode: (code: string) => Promise<{ eventId?: string; pending?: boolean; error?: string }>;
+  joinEventByCode: (code: string) => Promise<{ eventId?: string; pending?: boolean; refreshPending?: boolean; error?: string }>;
   getUnreadMessageCount: (eventId: string) => number;
   markChatRead: (eventId: string) => void;
   createInviteCode: (eventId: string) => Promise<string | null>;
@@ -294,12 +294,9 @@ export function EventProvider({ children }: PropsWithChildren) {
         }));
         return { eventId: localEvent.id };
       }
+      let result: Awaited<ReturnType<typeof joinCloudEvent>>;
       try {
-        const result = await joinCloudEvent(code);
-        if (!result) return { error: 'イベントが見つかりません。' };
-        const cloudEvents = user ? await fetchCloudEvents(user.id) : [];
-        setEvents(cloudEvents);
-        return { eventId: result.eventId, pending: result.status === 'pending' };
+        result = await joinCloudEvent(code);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('event_full')) return { error: 'このイベントは参加上限に達しています。' };
@@ -308,6 +305,14 @@ export function EventProvider({ children }: PropsWithChildren) {
         if (message.includes('not_authenticated')) return { error: 'ログインし直してから、もう一度お試しください。' };
         if (message.includes('invalid_invite')) return { error: '招待コードが無効、期限切れ、または使用上限に達しています。' };
         return { error: '参加処理に失敗しました。通信状態を確認して、もう一度お試しください。' };
+      }
+      if (!result) return { error: 'イベントが見つかりません。' };
+      try {
+        const cloudEvents = user ? await fetchCloudEvents(user.id) : [];
+        setEvents(cloudEvents);
+        return { eventId: result.eventId, pending: result.status === 'pending' };
+      } catch {
+        return { eventId: result.eventId, pending: result.status === 'pending', refreshPending: true };
       }
     },
     getUnreadMessageCount: (eventId) => {

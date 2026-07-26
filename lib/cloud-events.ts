@@ -50,7 +50,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
     collections(*, shares:collection_shares(*)),
     messages(*, author:profiles(id, display_name, avatar_color)),
     date_candidates(*, votes:date_candidate_votes(*)),
-    leave_requests:event_leave_requests(*, profile:profiles(id, display_name, avatar_color, avatar_path))
+    leave_requests:event_leave_requests(*, profile:profiles!event_leave_requests_user_id_fkey(id, display_name, avatar_color, avatar_path))
   `).order('start_date', { ascending: true });
   if (error) throw error;
   const cloudEvents = (data ?? []) as CloudEvent[];

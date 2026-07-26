@@ -35,6 +35,7 @@ export default function JoinScreen() {
       if (result.error) return Alert.alert('参加できませんでした', result.error);
       if (result.pending) return Alert.alert('参加申請を送りました', '主催者が承認するとイベントが表示されます。', [{ text: '閉じる', onPress: () => router.replace('/') }]);
       if (!result.eventId) return Alert.alert('参加できませんでした', '通信状態を確認して、もう一度お試しください。');
+      if (result.refreshPending) return Alert.alert('イベントに参加しました', '参加は完了しています。一覧の更新に時間がかかっているため、ホームで再読み込みしてください。', [{ text: 'ホームへ', onPress: () => router.replace('/') }]);
       setTimeout(() => router.replace(`/event/${result.eventId}`), 0);
     } finally {
       setLoading(false);

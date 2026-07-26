@@ -1,7 +1,7 @@
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,7 +16,7 @@ export default function SafetyCenterScreen() {
         <View style={styles.card}>
           <Row icon="people-outline" title="コミュニティガイドライン" sub="禁止される行為と対応方針" onPress={() => router.push('/legal/community')} />
           <Row icon="document-text-outline" title="利用規約" sub="サービス利用のルール" onPress={() => router.push('/legal/terms')} />
-          <Row icon="mail-outline" title="安全・児童保護の連絡先" sub="専用窓口から運営へ連絡" onPress={() => router.push('/support')} />
+          <Row icon="mail-outline" title="安全・児童保護の連絡先" sub="専用窓口から運営へ連絡" onPress={() => router.push('/support' as Href)} />
         </View>
         <Text style={styles.sectionTitle}>ブロック中の利用者</Text>
         <View style={styles.card}>

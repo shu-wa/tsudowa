@@ -1,7 +1,7 @@
 import { legalConfig } from '@/constants/legal';
 import { palette } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,11 +26,11 @@ export default function SupportScreen() {
         <Text style={styles.contact}>運営者: {legalConfig.operatorName || 'Do Eventer'}{'\n'}連絡先: {legalConfig.supportEmail || 'アプリ内サポート'}</Text>
         <Text style={styles.sectionTitle}>公開文書</Text>
         <View style={styles.card}>
-          <Action icon="reader-outline" title="利用規約" text="サービスの利用条件" onPress={() => router.push('/terms')} />
-          <Action icon="document-text-outline" title="プライバシーポリシー" text="データの取扱い" onPress={() => router.push('/privacy')} />
-          <Action icon="people-outline" title="コミュニティガイドライン" text="禁止行為と安全基準" onPress={() => router.push('/community-guidelines')} />
-          <Action icon="person-remove-outline" title="アカウント削除" text="削除手順と対象データ" onPress={() => router.push('/account-deletion')} />
-          <Action icon="code-slash-outline" title="第三者ソフトウェア" text="ライセンスと地図サービス" onPress={() => router.push('/acknowledgements')} />
+          <Action icon="reader-outline" title="利用規約" text="サービスの利用条件" onPress={() => router.push('/terms' as Href)} />
+          <Action icon="document-text-outline" title="プライバシーポリシー" text="データの取扱い" onPress={() => router.push('/privacy' as Href)} />
+          <Action icon="people-outline" title="コミュニティガイドライン" text="禁止行為と安全基準" onPress={() => router.push('/community-guidelines' as Href)} />
+          <Action icon="person-remove-outline" title="アカウント削除" text="削除手順と対象データ" onPress={() => router.push('/account-deletion' as Href)} />
+          <Action icon="code-slash-outline" title="第三者ソフトウェア" text="ライセンスと地図サービス" onPress={() => router.push('/acknowledgements' as Href)} />
         </View>
         <Text style={styles.emergency}>生命や身体への差し迫った危険がある場合は、この窓口だけに頼らず、地域の警察・緊急機関へ連絡してください。</Text>
       </ScrollView>

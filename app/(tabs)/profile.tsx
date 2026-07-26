@@ -3,7 +3,7 @@ import { useEvents } from '@/context/event-context';
 import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
@@ -55,7 +55,7 @@ export default function ProfileScreen() {
           <TouchableOpacity style={styles.row} onPress={() => router.push('/privacy-center')}><View style={styles.rowIcon}><Ionicons name="lock-closed-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>プライバシーセンター</Text><Text style={styles.rowSub}>データ利用、書き出し、アカウント削除</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/safety')}><View style={styles.rowIcon}><Ionicons name="shield-checkmark-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>安全センター</Text><Text style={styles.rowSub}>通報、ブロック、コミュニティルール</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => router.push('/legal/terms')}><View style={styles.rowIcon}><Ionicons name="document-text-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>規約とポリシー</Text><Text style={styles.rowSub}>利用規約と同意内容を確認</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>
-          <TouchableOpacity style={styles.row} onPress={() => router.push('/support')}><View style={styles.rowIcon}><Ionicons name="help-circle-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>ヘルプとお問い合わせ</Text><Text style={styles.rowSub}>使い方、プライバシー、安全に関する連絡</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={() => router.push('/support' as Href)}><View style={styles.rowIcon}><Ionicons name="help-circle-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>ヘルプとお問い合わせ</Text><Text style={styles.rowSub}>使い方、プライバシー、安全に関する連絡</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>
           {isConfigured && <TouchableOpacity style={styles.row} onPress={() => Alert.alert('ログアウトしますか？', undefined, [{ text: 'キャンセル', style: 'cancel' }, { text: 'ログアウト', style: 'destructive', onPress: signOut }])}><View style={styles.rowIcon}><Ionicons name="log-out-outline" size={20} color={palette.primary} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>ログアウト</Text><Text style={styles.rowSub}>この端末のセッションを終了</Text></View><Ionicons name="chevron-forward" size={18} color={palette.muted} /></TouchableOpacity>}
         </View>
         {!isConfigured && <TouchableOpacity style={styles.resetButton} onPress={confirmReset}><Ionicons name="refresh-outline" size={17} color={palette.danger} /><Text style={styles.resetText}>保存データを初期化</Text></TouchableOpacity>}

@@ -11,6 +11,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
 import { Alert, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 
 type Tab = '概要' | 'タイムフロー' | '集金';
 
@@ -20,7 +22,7 @@ const scheduleIcon: Record<ScheduleItem['type'], ComponentProps<typeof Ionicons>
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { findEvent, createInviteCode, getUnreadMessageCount, profile } = useEvents();
+  const { findEvent, createInviteCode, getUnreadMessageCount, profile, updateEventCover, deleteEvent, requestEventLeave, cancelEventLeave } = useEvents();
   const { user } = useAuth();
   const event = findEvent(id);
   const [tab, setTab] = useState<Tab>('概要');
@@ -50,13 +52,62 @@ export default function EventDetailScreen() {
   const paid = event.collections.reduce((sum, collection) => sum + collection.shares.filter((share) => share.paid).reduce((shareSum, share) => shareSum + share.amount, 0), 0);
   const unreadCount = getUnreadMessageCount(event.id);
   const displayStatus = getEventDisplayStatus(event);
+  const myParticipant = event.participants.find((participant) => participant.id === user?.id || (!user && participant.name === profile.name));
+  const isHost = myParticipant?.role === '主催者';
+  const myLeaveRequest = event.leaveRequests?.find((request) => request.userId === myParticipant?.id || request.mine);
+
+  const changeCover = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return Alert.alert('写真へのアクセスを許可してください');
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [16, 9], quality: 0.85 });
+    const asset = result.assets?.[0];
+    if (!asset) return;
+    const error = await updateEventCover(event.id, {
+      uri: asset.uri,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+      width: asset.width,
+      height: asset.height,
+      fileSize: asset.fileSize,
+      fileName: asset.fileName ?? undefined,
+    });
+    if (error) Alert.alert('写真を変更できませんでした', error);
+  };
+
+  const confirmDelete = () => Alert.alert(
+    'イベントを削除しますか？',
+    'チャット、集金、写真を含むイベント情報がすべて削除され、元に戻せません。',
+    [{ text: 'キャンセル', style: 'cancel' }, {
+      text: '削除する',
+      style: 'destructive',
+      onPress: async () => {
+        const error = await deleteEvent(event.id);
+        if (error) return Alert.alert('削除できませんでした', error);
+        router.replace('/');
+      },
+    }],
+  );
+
+  const confirmLeave = () => Alert.alert(
+    myLeaveRequest ? '脱退申請を取り消しますか？' : 'イベントからの脱退を申請しますか？',
+    myLeaveRequest ? '主催者に届いている申請を取り消します。' : '主催者または共同主催者が承認すると、イベントから脱退します。',
+    [{ text: 'キャンセル', style: 'cancel' }, {
+      text: myLeaveRequest ? '取り消す' : '申請する',
+      onPress: async () => {
+        const error = myLeaveRequest ? await cancelEventLeave(event.id) : await requestEventLeave(event.id);
+        if (error) Alert.alert('更新できませんでした', error);
+      },
+    }],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={[styles.hero, { backgroundColor: event.coverColor }]}>
+          {event.coverImageUri ? <Image source={{ uri: event.coverImageUri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} /> : null}
+          {event.coverImageUri ? <View style={styles.heroShade} /> : null}
           <View style={[styles.category, { backgroundColor: event.accentColor }]}><Text style={styles.categoryText}>{event.category}</Text></View>
-          <View style={styles.heroArt}><View style={[styles.sun, { backgroundColor: event.accentColor }]} /><View style={[styles.hillBack, { borderBottomColor: `${event.accentColor}55` }]} /><View style={[styles.hill, { borderBottomColor: event.accentColor }]} /></View>
+          {!event.coverImageUri ? <View style={styles.heroArt}><View style={[styles.sun, { backgroundColor: event.accentColor }]} /><View style={[styles.hillBack, { borderBottomColor: `${event.accentColor}55` }]} /><View style={[styles.hill, { borderBottomColor: event.accentColor }]} /></View> : null}
+          {canManageCollections ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="イベント写真を変更" style={styles.coverEdit} onPress={changeCover}><Ionicons name="camera" size={19} color={palette.surface} /><Text style={styles.coverEditText}>写真を変更</Text></TouchableOpacity> : null}
         </View>
         <View style={styles.titleBlock}>
           <View style={styles.statusRow}><View style={[styles.statusDot, { backgroundColor: event.accentColor }]} /><Text style={[styles.statusText, { color: event.accentColor }]}>{displayStatus}</Text><Text style={styles.host}> · {event.host}さんが主催</Text></View>
@@ -82,7 +133,7 @@ export default function EventDetailScreen() {
             <View style={styles.separator} />
             <InfoRow icon="location-outline" label="場所" value={event.location} subvalue={event.address} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/edit-location`)} />
             <View style={styles.separator} />
-            <InfoRow icon="people-outline" label="参加者" value={`${event.participants.length}人が参加`} subvalue={(event.joinRequests?.length ?? 0) > 0 ? `承認待ち ${event.joinRequests!.length}人` : '参加者一覧を表示'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/participants`)} />
+            <InfoRow icon="people-outline" label="参加者" value={`${event.participants.length}人が参加`} subvalue={(event.leaveRequests?.length ?? 0) > 0 && canManageCollections ? `脱退承認待ち ${event.leaveRequests!.length}人` : (event.joinRequests?.length ?? 0) > 0 ? `承認待ち ${event.joinRequests!.length}人` : '参加者一覧を表示'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/participants`)} />
           </View>
           <SectionTitle eyebrow="ABOUT" title="イベントについて" />
           <View style={styles.textCard}><Text style={styles.description}>{event.description || '説明はありません'}</Text></View>
@@ -133,6 +184,10 @@ export default function EventDetailScreen() {
             ? <TouchableOpacity style={styles.addCollectionButton} onPress={() => router.push(`/event/${event.id}/collection/new`)}><View style={styles.addCollectionIcon}><Ionicons name="add" size={21} color={palette.surface} /></View><View style={styles.addCollectionCopy}><Text style={styles.addCollectionTitle}>集金項目を追加</Text><Text style={styles.addCollectionText}>参加費、食事代、立替えなど</Text></View><Ionicons name="arrow-forward" size={19} color={palette.surface} /></TouchableOpacity>
             : <View style={styles.collectionReadonly}><Ionicons name="lock-closed-outline" size={17} color={palette.muted} /><Text style={styles.collectionReadonlyText}>集金の追加と支払状態の変更は主催者・共同主催者が行います</Text></View>}
         </>}
+        <View style={styles.eventActions}>
+          {!isHost && myParticipant ? <TouchableOpacity style={styles.leaveButton} onPress={confirmLeave}><Ionicons name={myLeaveRequest ? 'close-circle-outline' : 'exit-outline'} size={18} color={palette.danger} /><Text style={styles.leaveText}>{myLeaveRequest ? '脱退申請を取り消す' : '主催者へ脱退を申請'}</Text></TouchableOpacity> : null}
+          {isHost ? <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}><Ionicons name="trash-outline" size={18} color={palette.danger} /><Text style={styles.deleteText}>イベントを削除</Text></TouchableOpacity> : null}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -150,6 +205,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas }, empty: { flex: 1, backgroundColor: palette.canvas, alignItems: 'center', justifyContent: 'center', gap: 12 }, emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '800' }, emptyLink: { color: palette.primary, fontWeight: '700' },
   content: { paddingBottom: 38 },
   hero: { height: 185, marginHorizontal: 16, borderRadius: 27, overflow: 'hidden', padding: 16 },
+  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.16)' },
+  coverEdit: { position: 'absolute', right: 13, bottom: 13, height: 38, borderRadius: 13, paddingHorizontal: 12, backgroundColor: 'rgba(25,43,34,0.82)', flexDirection: 'row', alignItems: 'center' },
+  coverEditText: { color: palette.surface, fontSize: 12, fontWeight: '800', marginLeft: 6 },
   category: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 10, zIndex: 2 },
   categoryText: { color: palette.surface, fontSize: 12, fontWeight: '900', letterSpacing: 1.4 },
   heroArt: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
@@ -163,10 +221,15 @@ const styles = StyleSheet.create({
   quickAction: { flex: 1, minHeight: 91, borderRadius: 19, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center', ...shadow },
   quickIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 7 }, quickLabel: { color: palette.ink, fontSize: 13, fontWeight: '700' },
   unread: { position: 'absolute', top: 8, right: 12, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: palette.accent, alignItems: 'center', justifyContent: 'center' }, unreadText: { color: palette.surface, fontSize: 12, fontWeight: '800' },
-  tabs: { paddingHorizontal: 20, paddingVertical: 24, gap: 7 }, tab: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 13, backgroundColor: '#E9E9E2' }, tabActive: { backgroundColor: palette.primary }, tabText: { color: palette.muted, fontSize: 12, fontWeight: '700' }, tabTextActive: { color: palette.surface },
+  tabs: { paddingHorizontal: 20, paddingVertical: 26, gap: 9 }, tab: { minWidth: 104, alignItems: 'center', paddingHorizontal: 20, paddingVertical: 13, borderRadius: 15, backgroundColor: '#E9E9E2' }, tabActive: { backgroundColor: palette.primary }, tabText: { color: palette.muted, fontSize: 14, fontWeight: '800' }, tabTextActive: { color: palette.surface },
   infoCard: { marginHorizontal: 20, backgroundColor: palette.surface, borderRadius: 23, paddingHorizontal: 16 },
   infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 }, infoIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, infoCopy: { flex: 1, marginLeft: 12 }, infoLabel: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 3 }, infoValue: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 2 }, infoSub: { color: palette.muted, fontSize: 13 }, separator: { height: StyleSheet.hairlineWidth, backgroundColor: palette.line, marginLeft: 56 },
-  sectionTitle: { marginHorizontal: 20, marginTop: 25, marginBottom: 11 }, eyebrow: { color: palette.accent, fontSize: 12, fontWeight: '900', letterSpacing: 1.6, marginBottom: 3 }, sectionHeading: { color: palette.ink, fontSize: 19, fontWeight: '800' },
+  sectionTitle: { marginHorizontal: 20, marginTop: 28, marginBottom: 13 }, eyebrow: { color: palette.accent, fontSize: 12, fontWeight: '900', letterSpacing: 1.6, marginBottom: 4 }, sectionHeading: { color: palette.ink, fontSize: 22, fontWeight: '900' },
+  eventActions: { marginHorizontal: 20, marginTop: 30, gap: 10 },
+  leaveButton: { height: 50, borderRadius: 17, borderWidth: 1, borderColor: '#E7C6C2', backgroundColor: '#FFF8F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  leaveText: { color: palette.danger, fontSize: 13, fontWeight: '800', marginLeft: 7 },
+  deleteButton: { height: 50, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  deleteText: { color: palette.danger, fontSize: 13, fontWeight: '800', marginLeft: 7 },
   textCard: { marginHorizontal: 20, borderRadius: 20, padding: 17, backgroundColor: palette.surface }, description: { color: palette.ink, fontSize: 13, lineHeight: 22 },
   inviteCard: { marginHorizontal: 20, borderRadius: 20, padding: 18, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center' }, inviteCopy: { flex: 1, minWidth: 0, paddingRight: 12 }, inviteLabel: { color: '#BFD2C7', fontSize: 12, fontWeight: '800', marginBottom: 5 }, inviteCode: { width: '100%', color: palette.surface, fontSize: 22, letterSpacing: 1.5, fontWeight: '900' }, shareCircle: { width: 44, height: 44, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   timelineCard: { marginHorizontal: 20, backgroundColor: palette.surface, borderRadius: 23, padding: 17 }, dayLabel: { color: palette.accent, fontSize: 13, fontWeight: '900', letterSpacing: 1.2, marginVertical: 8 }, scheduleRow: { flexDirection: 'row', minHeight: 76 }, timeColumn: { width: 48, paddingTop: 5 }, time: { color: palette.ink, fontSize: 12, fontWeight: '800' }, timelineLine: { width: 34, alignItems: 'center' }, line: { position: 'absolute', top: 30, bottom: -5, width: 1.5, backgroundColor: palette.line }, timelineDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, scheduleCopy: { flex: 1, paddingTop: 4, paddingLeft: 3 }, scheduleTitle: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 4 }, scheduleNote: { color: palette.muted, fontSize: 13, lineHeight: 15 },

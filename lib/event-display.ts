@@ -15,6 +15,15 @@ export const getEventDisplayStatus = (event: EventItem, now = new Date()): Event
   return '予定';
 };
 
+export const getEventArchiveAt = (event: EventItem) => {
+  const eventEndTime = event.timeMode === 'range' && event.endTime ? event.endTime : event.startTime || '00:00';
+  const eventEnd = new Date(`${event.endDate}T${eventEndTime}:00`);
+  return new Date(eventEnd.getTime() + 24 * 60 * 60 * 1000);
+};
+
+export const isEventArchived = (event: EventItem, now = new Date()) =>
+  getEventArchiveAt(event).getTime() <= now.getTime();
+
 export const formatEventMonth = (startDate: string) => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDate);
   return match ? `${Number(match[2])}月` : '';

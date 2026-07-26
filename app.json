@@ -2,7 +2,7 @@
   "expo": {
     "name": "TSUDOWA",
     "slug": "tsudowa",
-    "version": "0.13.3",
+    "version": "0.14.0",
     "orientation": "portrait",
     "icon": "./assets/images/brand-icon.png",
     "scheme": "tsudowa",
@@ -68,7 +68,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "イベントチャットで選んだ写真を共有するために写真ライブラリを使用します。",
+          "photosPermission": "プロフィール、イベント、チャットで選んだ写真を設定・共有するために写真ライブラリを使用します。",
           "cameraPermission": false,
           "microphonePermission": false
         }

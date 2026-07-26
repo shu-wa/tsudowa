@@ -1,11 +1,13 @@
 import { supabase } from '@/lib/supabase';
 import { AttendanceChoice, AvailabilityChoice, ChatImageInput, CollectionItem, EventDateTimeInput, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
+import { appImageExtension, createAppImageUrls, uploadAppImage } from '@/lib/cloud-media';
+import * as Crypto from 'expo-crypto';
 
 export const isCloudId = (value?: string) => Boolean(value?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));
 const CHAT_MEDIA_BUCKET = 'chat-media';
 const MAX_CHAT_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type CloudProfile = { id: string; display_name: string; avatar_color: string };
+type CloudProfile = { id: string; display_name: string; avatar_color: string; avatar_path?: string };
 type CloudMember = { user_id: string; role: 'host' | 'cohost' | 'member'; status: string; attendance_label?: string; chat_read_at?: string; joined_at: string; profile?: CloudProfile };
 type CloudSchedule = { id: string; starts_at: string; title: string; note?: string; item_type: 'move' | 'activity' | 'food' | 'stay' };
 type CloudShare = { user_id: string; amount: number | string; paid: boolean; paid_at?: string };
@@ -23,13 +25,15 @@ type CloudMessage = {
 };
 type CloudCandidateVote = { user_id: string; choice: AvailabilityChoice };
 type CloudDateCandidate = { id: string; candidate_date: string; start_time: string; note?: string; votes?: CloudCandidateVote[] };
+type CloudLeaveRequest = { user_id: string; status: string; requested_at: string; profile?: CloudProfile };
 type CloudEvent = {
   id: string; owner_id: string; title: string; category: string; tagline?: string; description?: string;
   start_date: string; end_date: string; start_time: string; end_time?: string; time_mode: 'start' | 'range';
   location_name?: string; address?: string; latitude?: number; longitude?: number; capacity: number; status: string;
-  cover_color: string; accent_color: string; members?: CloudMember[]; schedule?: CloudSchedule[];
+  cover_color: string; accent_color: string; cover_image_path?: string; members?: CloudMember[]; schedule?: CloudSchedule[];
   collections?: CloudCollection[]; messages?: CloudMessage[];
   date_candidates?: CloudDateCandidate[];
+  leave_requests?: CloudLeaveRequest[];
 };
 
 const dateLabel = (start: string, end: string) => {
@@ -41,11 +45,12 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
   if (!supabase) return [];
   const { data, error } = await supabase.from('events').select(`
     *,
-    members:event_members(*, profile:profiles(id, display_name, avatar_color)),
+    members:event_members(*, profile:profiles(id, display_name, avatar_color, avatar_path)),
     schedule:schedule_items(*),
     collections(*, shares:collection_shares(*)),
     messages(*, author:profiles(id, display_name, avatar_color)),
-    date_candidates(*, votes:date_candidate_votes(*))
+    date_candidates(*, votes:date_candidate_votes(*)),
+    leave_requests:event_leave_requests(*, profile:profiles(id, display_name, avatar_color, avatar_path))
   `).order('start_date', { ascending: true });
   if (error) throw error;
   const cloudEvents = (data ?? []) as CloudEvent[];
@@ -59,6 +64,12 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       }
     }
   }
+  const appImagePaths = [...new Set(cloudEvents.flatMap((event) => [
+    event.cover_image_path,
+    ...(event.members ?? []).map((member) => member.profile?.avatar_path),
+    ...(event.leave_requests ?? []).map((request) => request.profile?.avatar_path),
+  ].filter((path): path is string => Boolean(path))))];
+  const appImageUrls = await createAppImageUrls(appImagePaths);
   return cloudEvents.map((event) => {
     const members = (event.members ?? []).filter((member) => member.status === 'approved');
     const participants = members.map((member) => ({
@@ -67,6 +78,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       initials: (member.profile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
       role: member.role === 'host' ? '主催者' as const : member.role === 'cohost' ? '共同主催者' as const : '参加者' as const,
       avatarColor: member.profile?.avatar_color ?? '#68736C',
+      avatarUri: member.profile?.avatar_path ? appImageUrls.get(member.profile.avatar_path) : undefined,
       attendance: member.attendance_label ?? '参加',
     }));
     const joinRequests = (event.members ?? []).filter((member) => member.status === 'pending').map((member) => ({
@@ -74,6 +86,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       name: member.profile?.display_name ?? '新しいメンバー',
       initials: (member.profile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
       avatarColor: member.profile?.avatar_color ?? '#68736C',
+      avatarUri: member.profile?.avatar_path ? appImageUrls.get(member.profile.avatar_path) : undefined,
       requestedAt: member.joined_at,
     }));
     const profileById = new Map(participants.map((participant) => [participant.id, participant]));
@@ -97,11 +110,22 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       description: event.description ?? '',
       coverColor: event.cover_color,
       accentColor: event.accent_color,
+      coverImagePath: event.cover_image_path,
+      coverImageUri: event.cover_image_path ? appImageUrls.get(event.cover_image_path) : undefined,
       status: event.status === 'active' ? '開催中' : event.status === 'completed' || event.status === 'cancelled' ? '終了' : '予定',
       inviteCode: '',
       capacity: event.capacity,
       participants,
       joinRequests,
+      leaveRequests: (event.leave_requests ?? []).filter((request) => request.status === 'pending').map((request) => ({
+        userId: request.user_id,
+        name: request.profile?.display_name ?? '参加者',
+        initials: (request.profile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+        avatarColor: request.profile?.avatar_color ?? '#68736C',
+        avatarUri: request.profile?.avatar_path ? appImageUrls.get(request.profile.avatar_path) : undefined,
+        requestedAt: request.requested_at,
+        mine: request.user_id === currentUserId,
+      })),
       dateCandidates: (event.date_candidates ?? []).sort((a, b) => `${a.candidate_date}${a.start_time}`.localeCompare(`${b.candidate_date}${b.start_time}`)).map((candidate) => ({
         id: candidate.id,
         date: candidate.candidate_date,
@@ -220,6 +244,49 @@ export async function syncCloudMessage(eventId: string, messageId: string, body:
     throw error;
   }
   return imagePath;
+}
+
+export async function syncCloudEventCover(eventId: string, image: ChatImageInput, previousPath?: string) {
+  if (!supabase || !isCloudId(eventId)) return undefined;
+  const path = `events/${eventId}/cover/${Crypto.randomUUID()}.${appImageExtension(image.mimeType, image.fileName)}`;
+  await uploadAppImage(path, image);
+  const { error } = await supabase.from('events').update({ cover_image_path: path }).eq('id', eventId);
+  if (error) {
+    await supabase.storage.from('app-media').remove([path]);
+    throw error;
+  }
+  if (previousPath && previousPath !== path) await supabase.storage.from('app-media').remove([previousPath]);
+  return path;
+}
+
+export async function deleteCloudEvent(eventId: string, coverPath?: string, chatImagePaths: string[] = []) {
+  if (!supabase || !isCloudId(eventId)) return;
+  if (coverPath) await supabase.storage.from('app-media').remove([coverPath]);
+  if (chatImagePaths.length) await supabase.storage.from(CHAT_MEDIA_BUCKET).remove(chatImagePaths);
+  const { error } = await supabase.rpc('delete_owned_event', { target_event_id: eventId });
+  if (error) throw error;
+}
+
+export async function requestCloudEventLeave(eventId: string) {
+  if (!supabase || !isCloudId(eventId)) return;
+  const { error } = await supabase.rpc('request_event_leave', { target_event_id: eventId });
+  if (error) throw error;
+}
+
+export async function cancelCloudEventLeave(eventId: string) {
+  if (!supabase || !isCloudId(eventId)) return;
+  const { error } = await supabase.rpc('cancel_event_leave_request', { target_event_id: eventId });
+  if (error) throw error;
+}
+
+export async function reviewCloudEventLeave(eventId: string, userId: string, decision: 'approved' | 'declined') {
+  if (!supabase || !isCloudId(eventId) || !isCloudId(userId)) return;
+  const { error } = await supabase.rpc('review_event_leave_request', {
+    target_event_id: eventId,
+    target_user_id: userId,
+    decision,
+  });
+  if (error) throw error;
 }
 
 function imageExtension(mimeType: string, fileName?: string) {

@@ -7,6 +7,7 @@ import { router, type Href } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
+import { UserAvatar } from '@/components/user-avatar';
 
 export default function ProfileScreen() {
   const { events, profile, settings, setNotificationsEnabled, resetLocalData } = useEvents();
@@ -32,7 +33,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>MY PAGE</Text><Text style={styles.title}>マイページ</Text>
         <View style={styles.profileCard}>
-          <View style={[styles.avatar, { backgroundColor: profile.avatarColor }]}><Text style={styles.avatarText}>{profile.initials}</Text></View>
+          <UserAvatar uri={profile.avatarUri} initials={profile.initials} color={profile.avatarColor} size={58} radius={20} />
           <View style={styles.profileCopy}><Text style={styles.name}>{profile.name}</Text><Text style={styles.handle}>{[profile.handle, profile.city].filter(Boolean).join(' · ')}</Text></View>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="プロフィールを編集" style={styles.edit} onPress={() => router.push('/profile-edit')}><Ionicons name="pencil" size={16} color={palette.primary} /></TouchableOpacity>
         </View>
@@ -67,7 +68,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas }, content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 34 }, eyebrow: { fontSize: 13, letterSpacing: 1.8, color: palette.accent, fontWeight: '800', marginBottom: 4 }, title: { fontSize: 26, color: palette.ink, fontWeight: '800', marginBottom: 24 },
-  profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 23, padding: 17 }, avatar: { width: 58, height: 58, borderRadius: 20, justifyContent: 'center', alignItems: 'center' }, avatarText: { color: palette.surface, fontSize: 16, fontWeight: '800' }, profileCopy: { flex: 1, marginLeft: 14 }, name: { color: palette.ink, fontSize: 18, fontWeight: '800', marginBottom: 4 }, handle: { color: palette.muted, fontSize: 12 }, edit: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primarySoft },
+  profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 23, padding: 17 }, profileCopy: { flex: 1, marginLeft: 14 }, name: { color: palette.ink, fontSize: 18, fontWeight: '800', marginBottom: 4 }, handle: { color: palette.muted, fontSize: 12 }, edit: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primarySoft },
   stats: { flexDirection: 'row', backgroundColor: palette.primary, borderRadius: 23, paddingVertical: 18, marginTop: 12, marginBottom: 28 }, stat: { flex: 1, alignItems: 'center' }, statNumber: { color: palette.surface, fontSize: 20, fontWeight: '800', marginBottom: 3 }, statLabel: { color: '#D8E6DE', fontSize: 12 }, divider: { width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.25)' },
   cloudStatus: { flexDirection: 'row', alignItems: 'center', borderRadius: 17, padding: 14, marginTop: -16, marginBottom: 25 }, cloudCopy: { flex: 1, marginLeft: 10 }, cloudTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' }, cloudText: { color: palette.muted, fontSize: 12, marginTop: 3 },
   sectionTitle: { color: palette.ink, fontSize: 19, fontWeight: '800', marginBottom: 12 }, settings: { backgroundColor: palette.surface, borderRadius: 23, overflow: 'hidden' }, row: { minHeight: 72, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line }, rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.primarySoft }, rowCopy: { flex: 1, marginLeft: 12 }, rowLabel: { color: palette.ink, fontSize: 14, fontWeight: '700', marginBottom: 3 }, rowSub: { color: palette.muted, fontSize: 12, lineHeight: 17 }, resetButton: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 18 }, resetText: { color: palette.danger, fontSize: 13, fontWeight: '700', marginLeft: 6 }, version: { textAlign: 'center', color: palette.muted, fontSize: 12, marginTop: 10 },

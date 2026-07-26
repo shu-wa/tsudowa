@@ -41,6 +41,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'person-circle' : 'person-circle-outline'} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="archive"
+        options={{
+          title: '思い出',
+          tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'archive' : 'archive-outline'} color={color} />,
+        }}
+      />
     </Tabs>
   );
 }

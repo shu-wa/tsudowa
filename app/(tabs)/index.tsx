@@ -1,16 +1,18 @@
 import { EventCard } from '@/components/event-card';
 import { palette, shadow, typography } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
-import { getLocalDateKey } from '@/lib/event-display';
+import { isEventArchived } from '@/lib/event-display';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { UserAvatar } from '@/components/user-avatar';
+import { useArchiveNow } from '@/lib/use-archive-now';
 
 export default function HomeScreen() {
   const { events, profile, getUnreadMessageCount } = useEvents();
-  const today = getLocalDateKey(new Date());
-  const upcomingEvents = [...events].filter((event) => event.endDate >= today).sort((a, b) => `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`));
+  const now = useArchiveNow();
+  const upcomingEvents = [...events].filter((event) => !isEventArchived(event, now)).sort((a, b) => `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`));
   const nextEvent = upcomingEvents[0];
   const laterEvents = upcomingEvents.slice(1);
   const latestMessage = nextEvent?.messages[nextEvent.messages.length - 1];
@@ -25,7 +27,7 @@ export default function HomeScreen() {
             <Text style={styles.eyebrow}>{todayLabel}</Text>
             <Text style={styles.greeting}>こんにちは、{profile.name.split(' ')[0]}さん</Text>
           </View>
-          <View style={[styles.avatar, { backgroundColor: profile.avatarColor }]}><Text style={styles.avatarText}>{profile.initials}</Text></View>
+          <UserAvatar uri={profile.avatarUri} initials={profile.initials} color={profile.avatarColor} size={44} radius={22} />
         </View>
 
         <View style={styles.actionRow}>
@@ -83,8 +85,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, marginBottom: 24 },
   eyebrow: { fontSize: 13, letterSpacing: 1.8, color: palette.muted, fontWeight: '700', marginBottom: 6 },
   greeting: { fontSize: 24, lineHeight: 31, color: palette.ink, fontFamily: typography.rounded, fontWeight: '700' },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: palette.surface, fontSize: 13, fontWeight: '800' },
   actionRow: { gap: 10, marginBottom: 34 },
   action: { minHeight: 76, borderRadius: 22, backgroundColor: palette.surface, padding: 14, flexDirection: 'row', alignItems: 'center', ...shadow },
   actionPrimary: { backgroundColor: palette.primary },

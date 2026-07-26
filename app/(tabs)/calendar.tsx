@@ -1,17 +1,19 @@
 import { EventCard } from '@/components/event-card';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
-import { getLocalDateKey } from '@/lib/event-display';
+import { getLocalDateKey, isEventArchived } from '@/lib/event-display';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useArchiveNow } from '@/lib/use-archive-now';
 
 const todayKey = getLocalDateKey(new Date());
 
 export default function CalendarScreen() {
   const { events } = useEvents();
+  const now = useArchiveNow();
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -28,13 +30,13 @@ export default function CalendarScreen() {
   const monthEvents = useMemo(() => {
     const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-    return events.filter((event) => event.startDate <= monthEnd && event.endDate >= monthStart);
-  }, [daysInMonth, events, month, year]);
+    return events.filter((event) => !isEventArchived(event, now) && event.startDate <= monthEnd && event.endDate >= monthStart);
+  }, [daysInMonth, events, month, now, year]);
 
   const moveMonth = (offset: number) => setVisibleMonth(new Date(year, month + offset, 1));
   const dayHasEvent = (day: number) => {
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return events.some((event) => event.startDate <= key && event.endDate >= key);
+    return events.some((event) => !isEventArchived(event, now) && event.startDate <= key && event.endDate >= key);
   };
 
   return (

@@ -1,8 +1,8 @@
 import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
-import { syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
+import { fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
-import { confirmCloudDateCandidate, createCloudEvent, createCloudInvite, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule } from '@/lib/cloud-events';
+import { cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudEvent, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule } from '@/lib/cloud-events';
 import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
 import { isEventManager } from '@/lib/event-permissions';
 import { useAuth } from '@/context/auth-context';
@@ -67,7 +67,12 @@ type EventContextValue = {
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
   toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => Promise<string | null>;
-  updateProfile: (profile: UserProfile) => void;
+  updateProfile: (profile: UserProfile, image?: ChatImageInput) => Promise<string | null>;
+  updateEventCover: (eventId: string, image: ChatImageInput) => Promise<string | null>;
+  deleteEvent: (eventId: string) => Promise<string | null>;
+  requestEventLeave: (eventId: string) => Promise<string | null>;
+  cancelEventLeave: (eventId: string) => Promise<string | null>;
+  reviewEventLeave: (eventId: string, userId: string, decision: 'approved' | 'declined') => Promise<string | null>;
   completeOnboarding: (input: OnboardingInput) => void;
   setNotificationsEnabled: (enabled: boolean) => Promise<string | null>;
   submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status'>) => Promise<string | null>;
@@ -117,6 +122,7 @@ const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event)
     createdAt: message.createdAt ?? new Date(`${event.startDate}T00:00:00`).toISOString(),
   })),
   joinRequests: event.joinRequests ?? [],
+  leaveRequests: event.leaveRequests ?? [],
   dateCandidates: event.dateCandidates ?? [],
 }));
 
@@ -189,7 +195,7 @@ export function EventProvider({ children }: PropsWithChildren) {
   }, [events, isHydrated, settings.notificationsEnabled]);
 
   useEffect(() => {
-    if (!isConfigured || !isHydrated || !user) return;
+    if (!isConfigured || !isHydrated || !settings.onboardingCompleted || !user) return;
     let active = true;
     const refresh = () => fetchCloudEvents(user.id).then((cloudEvents) => { if (active) setEvents(cloudEvents); }).catch(() => undefined);
     void refresh();
@@ -202,9 +208,28 @@ export function EventProvider({ children }: PropsWithChildren) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'collections' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_shares' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_leave_requests' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, refresh)
       .subscribe();
     return () => { active = false; if (client && channel) void client.removeChannel(channel); };
-  }, [isConfigured, isHydrated, user]);
+  }, [isConfigured, isHydrated, settings.onboardingCompleted, user]);
+
+  useEffect(() => {
+    if (!isConfigured || !isHydrated || !settings.onboardingCompleted || !user) return;
+    let active = true;
+    void fetchCloudProfile(user.id).then(async (cloudProfile) => {
+      if (!active || !cloudProfile) return;
+      if (cloudProfile.name === '新しいメンバー' && profile.name.trim()) {
+        await syncProfileToCloud(profile);
+        return;
+      }
+      setProfile((current) => {
+        const next = { ...current, ...cloudProfile, email: user.email };
+        return JSON.stringify(current) === JSON.stringify(next) ? current : next;
+      });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [isConfigured, isHydrated, profile, settings.onboardingCompleted, user]);
 
   useEffect(() => {
     if (!isConfigured || !isHydrated || !user || !supabase) return;
@@ -265,7 +290,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         const alreadyJoined = localEvent.participants.some((participant) => participant.id === 'me' || participant.name === profile.name);
         if (!alreadyJoined) setEvents((current) => current.map((event) => event.id !== localEvent.id ? event : {
           ...event,
-          participants: [...event.participants, { id: 'me', name: profile.name, initials: profile.initials, role: '参加者', avatarColor: profile.avatarColor, attendance: '参加' }],
+          participants: [...event.participants, { id: 'me', name: profile.name, initials: profile.initials, role: '参加者', avatarColor: profile.avatarColor, avatarUri: profile.avatarUri, attendance: '参加' }],
         }));
         return { eventId: localEvent.id };
       }
@@ -342,7 +367,7 @@ export function EventProvider({ children }: PropsWithChildren) {
             initials: request.initials,
             role: '参加者' as const,
             avatarColor: request.avatarColor,
-            attendance: '未定',
+            attendance: '参加',
           }] : event.participants,
         }));
         return null;
@@ -421,9 +446,112 @@ export function EventProvider({ children }: PropsWithChildren) {
         return '日程を確定できませんでした。管理権限や通信状態を確認してください。';
       }
     },
-    updateProfile: (nextProfile) => {
-      setProfile(nextProfile);
-      void syncProfileToCloud(nextProfile);
+    updateProfile: async (nextProfile, image) => {
+      const previous = profile;
+      const optimistic = { ...nextProfile, avatarUri: image?.uri ?? nextProfile.avatarUri };
+      setProfile(optimistic);
+      setEvents((current) => current.map((event) => ({
+        ...event,
+        host: event.participants.some((participant) => participant.id === user?.id && participant.role === '主催者') ? optimistic.name : event.host,
+        participants: event.participants.map((participant) => participant.id === user?.id || (!user && participant.id === 'me')
+          ? { ...participant, name: optimistic.name, initials: optimistic.initials, avatarColor: optimistic.avatarColor, avatarUri: optimistic.avatarUri }
+          : participant),
+      })));
+      try {
+        const avatarPath = await syncProfileToCloud(nextProfile, image);
+        setProfile((current) => ({ ...current, avatarPath: avatarPath ?? current.avatarPath }));
+        return null;
+      } catch (error) {
+        setProfile(previous);
+        const message = error instanceof Error ? error.message : '';
+        if (message.includes('duplicate') || message.includes('profiles_handle_key')) return 'この表示IDはすでに使われています。';
+        if (message === 'image_too_large') return 'プロフィール画像は8MB以下にしてください。';
+        return 'プロフィールを保存できませんでした。通信状態を確認してください。';
+      }
+    },
+    updateEventCover: async (eventId, image) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target || !isEventManager(target, user?.id, profile.name)) return '主催者または共同主催者のみ変更できます。';
+      const previousUri = target.coverImageUri;
+      setEvents((current) => current.map((event) => event.id === eventId ? { ...event, coverImageUri: image.uri } : event));
+      try {
+        const coverImagePath = await syncCloudEventCover(eventId, image, target.coverImagePath);
+        setEvents((current) => current.map((event) => event.id === eventId ? { ...event, coverImagePath } : event));
+        return null;
+      } catch (error) {
+        setEvents((current) => current.map((event) => event.id === eventId ? { ...event, coverImageUri: previousUri } : event));
+        if (error instanceof Error && error.message === 'image_too_large') return 'イベント画像は8MB以下にしてください。';
+        return 'イベント画像を保存できませんでした。通信状態を確認してください。';
+      }
+    },
+    deleteEvent: async (eventId) => {
+      const target = events.find((event) => event.id === eventId);
+      const host = target?.participants.find((participant) => participant.role === '主催者');
+      const isHost = host && (host.id === user?.id || (!user && host.id === 'me'));
+      if (!target || !isHost) return 'イベントを削除できるのは主催者だけです。';
+      try {
+        await deleteCloudEvent(eventId, target.coverImagePath, target.messages.map((message) => message.imagePath).filter((path): path is string => Boolean(path)));
+        setEvents((current) => current.filter((event) => event.id !== eventId));
+        return null;
+      } catch {
+        return 'イベントを削除できませんでした。通信状態を確認してください。';
+      }
+    },
+    requestEventLeave: async (eventId) => {
+      const target = events.find((event) => event.id === eventId);
+      const myId = user?.id ?? 'me';
+      const me = target?.participants.find((participant) => participant.id === myId || (!user && participant.name === profile.name));
+      if (!target || !me) return 'このイベントの参加者ではありません。';
+      if (me.role === '主催者') return '主催者はイベントを削除するか、主催者移行後に脱退してください。';
+      if (target.leaveRequests?.some((request) => request.userId === me.id)) return null;
+      try {
+        await requestCloudEventLeave(eventId);
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          leaveRequests: [...(event.leaveRequests ?? []), {
+            userId: me.id,
+            name: me.name,
+            initials: me.initials,
+            avatarColor: me.avatarColor,
+            avatarUri: me.avatarUri,
+            requestedAt: new Date().toISOString(),
+            mine: true,
+          }],
+        }));
+        return null;
+      } catch {
+        return '脱退申請を送信できませんでした。通信状態を確認してください。';
+      }
+    },
+    cancelEventLeave: async (eventId) => {
+      const target = events.find((event) => event.id === eventId);
+      const myId = user?.id ?? 'me';
+      if (!target?.leaveRequests?.some((request) => request.userId === myId || request.mine)) return '脱退申請が見つかりません。';
+      try {
+        await cancelCloudEventLeave(eventId);
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          leaveRequests: (event.leaveRequests ?? []).filter((request) => request.userId !== myId && !request.mine),
+        }));
+        return null;
+      } catch {
+        return '脱退申請を取り消せませんでした。';
+      }
+    },
+    reviewEventLeave: async (eventId, targetUserId, decision) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target || !isEventManager(target, user?.id, profile.name)) return '管理権限がありません。';
+      try {
+        await reviewCloudEventLeave(eventId, targetUserId, decision);
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          leaveRequests: (event.leaveRequests ?? []).filter((request) => request.userId !== targetUserId),
+          participants: decision === 'approved' ? event.participants.filter((participant) => participant.id !== targetUserId) : event.participants,
+        }));
+        return null;
+      } catch {
+        return '脱退申請を更新できませんでした。通信状態と権限を確認してください。';
+      }
     },
     completeOnboarding: (input) => {
       const recordedAt = new Date().toISOString();
@@ -663,13 +791,15 @@ export function EventProvider({ children }: PropsWithChildren) {
         description: input.description || '',
         coverColor: '#E2E9D5',
         accentColor: '#52683F',
+        coverImageUri: input.coverImage?.uri,
         status: '予定',
         inviteCode: supabase ? '' : Math.random().toString(36).slice(2, 8).toUpperCase(),
         capacity: 10000,
         participants: [
-          { id: 'me', name: profile.name, initials: profile.initials, role: '主催者', avatarColor: profile.avatarColor, attendance: '参加' },
+          { id: user?.id ?? 'me', name: profile.name, initials: profile.initials, role: '主催者', avatarColor: profile.avatarColor, avatarUri: profile.avatarUri, attendance: '参加' },
         ],
         joinRequests: [],
+        leaveRequests: [],
         dateCandidates: [],
         schedule: [
           { id: 'start', day: input.startDate || '当日', time: input.startTime, title: 'イベント開始', type: 'activity' },
@@ -678,13 +808,13 @@ export function EventProvider({ children }: PropsWithChildren) {
           id: Crypto.randomUUID(),
           title: '参加費',
           category: 'entry',
-          paidByParticipantId: 'me',
+          paidByParticipantId: user?.id ?? 'me',
           totalAmount: input.initialFee,
           splitMethod: 'equal',
           autoAssignNewMembers: true,
           defaultShareAmount: input.initialFee,
           note: 'イベント作成時に登録した参加費です。',
-          shares: [{ participantId: 'me', amount: input.initialFee, paid: false }],
+          shares: [{ participantId: user?.id ?? 'me', amount: input.initialFee, paid: false }],
         }] : [],
         messages: [],
       };
@@ -692,6 +822,10 @@ export function EventProvider({ children }: PropsWithChildren) {
       void createCloudEvent(event).then(async (inviteCode) => {
         if (inviteCode) setEvents((current) => current.map((item) => item.id === event.id ? { ...item, inviteCode } : item));
         await Promise.all(event.collections.map((collection) => syncCloudCollection(event.id, collection)));
+        if (input.coverImage) {
+          const coverImagePath = await syncCloudEventCover(event.id, input.coverImage);
+          setEvents((current) => current.map((item) => item.id === event.id ? { ...item, coverImagePath, coverImageUri: input.coverImage?.uri } : item));
+        }
       }).catch(() => undefined);
       return event;
     },

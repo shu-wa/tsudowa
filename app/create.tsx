@@ -5,13 +5,15 @@ import { formatJapaneseDateRange, NativeDateRangePicker, toDateString } from '@/
 import { TimeRangePicker, formatTimeLabel } from '@/components/time-range-picker';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
-import { EventTimeMode } from '@/types/event';
+import { ChatImageInput, EventTimeMode } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 
 export default function CreateEventScreen() {
   const { addEvent } = useEvents();
@@ -32,6 +34,7 @@ export default function CreateEventScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [description, setDescription] = useState('');
   const [initialFee, setInitialFee] = useState('');
+  const [coverImage, setCoverImage] = useState<ChatImageInput>();
   const mapSelectionHint = Platform.OS === 'web'
     ? '場所名の直接入力、現在地、地図プレビューに対応'
     : '施設名・住所検索、現在地、地図タップに対応';
@@ -48,9 +51,30 @@ export default function CreateEventScreen() {
       Alert.alert('終了時刻を確認してください', '同じ日の場合、終了時刻は開始時刻より後にしてください。');
       return;
     }
-    const event = addEvent({ title: title.trim(), startDate, endDate, startTime, endTime, timeMode, location, address, latitude: hasSelectedCoordinates ? latitude : undefined, longitude: hasSelectedCoordinates ? longitude : undefined, description, initialFee: Number(initialFee) || 0 });
+    const event = addEvent({ title: title.trim(), startDate, endDate, startTime, endTime, timeMode, location, address, latitude: hasSelectedCoordinates ? latitude : undefined, longitude: hasSelectedCoordinates ? longitude : undefined, description, initialFee: Number(initialFee) || 0, coverImage });
     router.dismiss();
     setTimeout(() => router.push(`/event/${event.id}`), 0);
+  };
+
+  const pickCoverImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return Alert.alert('写真へのアクセスを許可してください');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.85,
+    });
+    const asset = result.assets?.[0];
+    if (!asset) return;
+    setCoverImage({
+      uri: asset.uri,
+      mimeType: asset.mimeType ?? 'image/jpeg',
+      width: asset.width,
+      height: asset.height,
+      fileSize: asset.fileSize,
+      fileName: asset.fileName ?? undefined,
+    });
   };
 
   const addressLabel = (value?: Location.LocationGeocodedAddress) => value
@@ -111,6 +135,13 @@ export default function CreateEventScreen() {
           </View>
 
           <FormField label="イベント名" icon="ticket-outline" placeholder="例：夏のキャンプ 2026" value={title} onChangeText={setTitle} autoFocus />
+          <Text style={styles.photoLabel}>イベント写真</Text>
+          <TouchableOpacity style={styles.coverPicker} onPress={pickCoverImage} activeOpacity={0.82}>
+            {coverImage
+              ? <Image source={{ uri: coverImage.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+              : <><View style={styles.coverIcon}><Ionicons name="image-outline" size={24} color={palette.primary} /></View><Text style={styles.coverTitle}>イベントを表す写真を選ぶ</Text><Text style={styles.coverText}>作成後も主催者・共同主催者が変更できます</Text></>}
+            <View style={styles.coverEdit}><Ionicons name={coverImage ? 'pencil' : 'add'} size={17} color={palette.surface} /></View>
+          </TouchableOpacity>
           <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催日</Text><Text style={styles.sectionHint}>端末標準のカレンダーから選択</Text></View><Text style={styles.selection}>{formatJapaneseDateRange(startDate, endDate)}</Text></View>
           <NativeDateRangePicker startDate={startDate} endDate={endDate} onChange={(start, end) => { setStartDate(start); setEndDate(end); }} />
           <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催時間</Text><Text style={styles.sectionHint}>開始時刻のみでも登録できます</Text></View><Text style={styles.selection}>{formatTimeLabel(startTime, endTime, timeMode)}</Text></View>
@@ -152,6 +183,12 @@ const styles = StyleSheet.create({
   introCopy: { marginLeft: 12 },
   introTitle: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 3 },
   introText: { color: palette.muted, fontSize: 13 },
+  photoLabel: { color: palette.ink, fontSize: 13, fontWeight: '800', marginTop: -4, marginBottom: 9 },
+  coverPicker: { height: 176, borderRadius: 22, backgroundColor: palette.primarySoft, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginBottom: 22, borderWidth: 1, borderColor: palette.line },
+  coverIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  coverTitle: { color: palette.primary, fontSize: 14, fontWeight: '900' },
+  coverText: { color: palette.muted, fontSize: 11, marginTop: 4 },
+  coverEdit: { position: 'absolute', right: 12, bottom: 12, width: 38, height: 38, borderRadius: 14, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 6, marginBottom: 10 },
   sectionTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   sectionHint: { color: palette.muted, fontSize: 12, marginTop: 3 },

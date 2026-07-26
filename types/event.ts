@@ -4,6 +4,7 @@ export type Participant = {
   initials: string;
   role: '主催者' | '共同主催者' | '参加者';
   avatarColor: string;
+  avatarUri?: string;
   attendance: string;
 };
 
@@ -14,7 +15,18 @@ export type JoinRequest = {
   name: string;
   initials: string;
   avatarColor: string;
+  avatarUri?: string;
   requestedAt: string;
+};
+
+export type LeaveRequest = {
+  userId: string;
+  name: string;
+  initials: string;
+  avatarColor: string;
+  avatarUri?: string;
+  requestedAt: string;
+  mine?: boolean;
 };
 
 export type AvailabilityChoice = 'yes' | 'maybe' | 'no';
@@ -106,6 +118,8 @@ export type UserProfile = {
   city: string;
   initials: string;
   avatarColor: string;
+  avatarUri?: string;
+  avatarPath?: string;
   email?: string;
 };
 
@@ -193,11 +207,14 @@ export type EventItem = {
   description: string;
   coverColor: string;
   accentColor: string;
+  coverImageUri?: string;
+  coverImagePath?: string;
   status: '開催中' | '予定' | '終了';
   inviteCode: string;
   capacity: number;
   participants: Participant[];
   joinRequests?: JoinRequest[];
+  leaveRequests?: LeaveRequest[];
   dateCandidates?: DateCandidate[];
   schedule: ScheduleItem[];
   collections: CollectionItem[];
@@ -218,6 +235,7 @@ export type NewEventInput = {
   longitude?: number;
   description: string;
   initialFee: number;
+  coverImage?: ChatImageInput;
 };
 
 export type NewCollectionInput = {

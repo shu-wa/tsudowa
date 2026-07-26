@@ -2,7 +2,7 @@
   "expo": {
     "name": "TSUDOWA",
     "slug": "tsudowa",
-    "version": "0.13.0",
+    "version": "0.13.1",
     "orientation": "portrait",
     "icon": "./assets/images/brand-icon.png",
     "scheme": "tsudowa",
@@ -29,7 +29,7 @@
       "versionCode": 1
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/brand-favicon.png"
     },
     "plugins": [

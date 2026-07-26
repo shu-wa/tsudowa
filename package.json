@@ -1,7 +1,7 @@
 {
   "name": "tsudowa",
   "main": "expo-router/entry",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "start": "expo start",
@@ -9,6 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "web:preview": "expo export --platform web && node scripts/serve-web.js",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "export:web": "expo export --platform web",

@@ -3,7 +3,7 @@ export const legalConfig = {
   operatorName: process.env.EXPO_PUBLIC_OPERATOR_NAME?.trim() ?? '',
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() ?? '',
   termsVersion: '2026-07-26.2',
-  privacyVersion: '2026-07-26.2',
+  privacyVersion: '2026-07-26.3',
   communityVersion: '2026-07-26',
 };
 
@@ -45,8 +45,8 @@ export const legalDocuments: Record<LegalDocumentKey, LegalDocument> = {
       { title: '2. 取得する情報', body: 'アカウント情報（メールアドレス、表示名、表示ID、生年月日、任意の地域）、イベント情報（名称、日時、場所、説明、予定）、参加・招待情報、チャットの文章と利用者が任意に共有した写真、集金項目と支払状態、通報・ブロック情報、同意履歴、端末リマインダー設定を取り扱います。実際の決済情報、連絡先一覧、選択されていない写真・動画は取得しません。' },
       { title: '3. 利用目的', body: '本人確認とアカウント管理、年齢確認、イベント作成・招待・参加、メッセージ送信、予定・場所・費用の共有、支払状態の記録、端末リマインダー、安全対策、不正防止、通報対応、問い合わせ対応、障害対応、法令およびストア規約への対応に利用します。広告配信または行動ターゲティングには利用しません。' },
       { title: '4. 処理の法的根拠', body: '適用される法令に応じて、アカウントとイベント機能の提供には契約の履行、端末権限を使う任意機能には本人の選択または同意、安全確保、不正防止、障害対応、サービス保護には運営者または利用者の正当な利益、法令対応には法的義務、生命・身体の保護には重大な利益を根拠として取り扱います。同意を根拠とする処理は、将来に向かって同意を撤回できます。' },
-      { title: '5. 端末権限と外部サービス', body: 'カメラは招待QRコードを読み取る場面、写真ライブラリは利用者がチャットへ共有する写真を選ぶ場面、カレンダーは予定を追加する場面、位置情報は現在地から場所を探す場面でのみ利用します。選択していない写真へアクセスして送信することはありません。場所検索の文字列や座標は端末の地図・ジオコーディング機能へ送信される場合があります。権限を拒否しても、写真共有以外の機能や、招待コード・住所の手入力を利用できます。' },
-      { title: '6. 委託先と第三者提供', body: '認証、データベース、非公開の写真保存、サーバー処理のためSupabaseを利用し、地図・位置検索・写真選択・カレンダー・カメラ・通知には端末のAppleまたはGoogleの機能を利用します。共有写真はイベント参加者だけが期限付きURLで閲覧できるようアクセス制御します。これらの提供者は、サービス提供に必要な範囲でデータを処理します。法令に基づく場合、生命・安全の保護に必要な場合、または本人の同意がある場合を除き、個人データを販売または第三者へ提供しません。広告SDKと任意分析SDKは使用していません。' },
+      { title: '5. 端末権限と外部サービス', body: 'カメラは招待QRコードを読み取る場面、写真ライブラリは利用者がチャットへ共有する写真を選ぶ場面、カレンダーは予定を追加する場面、位置情報は現在地から場所を探す場面でのみ利用します。選択していない写真へアクセスして送信することはありません。場所検索の文字列や座標は端末の地図・ジオコーディング機能へ送信される場合があります。Web版で地図を表示すると、表示範囲の座標、IPアドレス、ブラウザ情報などがOpenStreetMap Foundationのサービスへ送信される場合があります。権限を拒否しても、写真共有以外の機能や、招待コード・住所の手入力を利用できます。' },
+      { title: '6. 委託先と第三者提供', body: '認証、データベース、非公開の写真保存、サーバー処理のためSupabaseを利用し、iOS・Androidの地図・位置検索・写真選択・カレンダー・カメラ・通知には端末のAppleまたはGoogleの機能を利用します。Web版の地図表示にはOpenStreetMap Foundationが提供するOpenStreetMapを利用します。共有写真はイベント参加者だけが期限付きURLで閲覧できるようアクセス制御します。これらの提供者は、サービス提供に必要な範囲でデータを処理します。法令に基づく場合、生命・安全の保護に必要な場合、または本人の同意がある場合を除き、個人データを販売または第三者へ提供しません。広告SDKと任意分析SDKは使用していません。' },
       { title: '7. 国外での取扱い', body: 'クラウド事業者や端末サービス提供者の設備が国外にある場合、個人データが国外で処理されることがあります。適用される法令に応じて、十分性認定、標準契約条項その他の適法な移転手段を利用し、委託先の契約、アクセス制御、暗号化通信その他の保護措置を確認します。具体的な移転手段に関する問い合わせは連絡先で受け付けます。' },
       { title: '8. 保存期間', body: 'アカウント情報、イベント、メッセージ、共有写真、参加状況、支払状態、同意履歴は、アカウントが存続する間または対象データが削除されるまで保持します。アカウント削除時は本人が投稿した写真を削除し、主催イベントを削除する場合はそのイベントの写真も削除します。ブロック情報は解除またはアカウント削除まで保持します。通報情報は調査と再発防止に必要な期間保持し、不要となった時点で削除または匿名化します。委託先のセキュリティログは各提供者の保持期間に従います。' },
       { title: '9. 必須情報と自動化された判断', body: 'メールアドレス、表示名、生年月日、利用規約等への同意はアカウント作成に必要です。イベント情報、チャット、共有写真、位置、カレンダー、通知、地域は該当機能を利用する場合にのみ必要です。写真共有は任意で、利用しなくてもチャット文章を送信できます。必須情報を提供しない場合はアカウントまたは該当機能を利用できません。法的効果または同様に重大な影響を生じさせる、完全に自動化された意思決定やプロファイリングは行いません。' },
@@ -77,7 +77,7 @@ export const legalDocuments: Record<LegalDocumentKey, LegalDocument> = {
     sections: [
       { title: '主なソフトウェア', body: 'Expo、React、React Native、Supabase JavaScript、React Navigation、react-native-maps、AsyncStorage、React Native DateTimePicker、Expo Image Pickerなどを、それぞれのオープンソースライセンスに従って使用しています。依存関係の監査では、MIT、ISC、BSD、Apache-2.0、MPL-2.0、CC-BY-4.0などのライセンスを確認しています。' },
       { title: 'Ionicons', body: '画面内アイコンにはIoniconsを使用しています。Ionicons Copyright (c) 2015-present Ionic (https://ionic.io/), licensed under the MIT License. Ioniconsはアプリアイコン、サービスロゴ、商標としては使用していません。' },
-      { title: '地図と位置検索', body: 'iOSではApple Maps、AndroidではGoogle Maps、および各OSの位置検索機能が表示・検索結果を提供します。地図データには各提供者の利用条件と表示上の権利表記が適用されます。' },
+      { title: '地図と位置検索', body: 'iOSではApple Maps、AndroidではGoogle Maps、および各OSの位置検索機能が表示・検索結果を提供します。Web版の地図にはOpenStreetMapを使用します。© OpenStreetMap contributors。OpenStreetMapの地図データはOpen Data Commons Open Database License（ODbL）の下で提供されています。地図データには各提供者の利用条件と表示上の権利表記が適用されます。' },
       { title: 'MIT License', body: 'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies, subject to inclusion of the applicable copyright and permission notices. THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY.' },
     ],
   },

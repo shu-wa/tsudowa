@@ -32,6 +32,12 @@ export default function CreateEventScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [description, setDescription] = useState('');
   const [initialFee, setInitialFee] = useState('');
+  const mapSelectionHint = Platform.OS === 'web'
+    ? '場所名の直接入力、現在地、地図プレビューに対応'
+    : '施設名・住所検索、現在地、地図タップに対応';
+  const mapSelectionEmpty = Platform.OS === 'web'
+    ? '場所名を入力するか、現在地を選択'
+    : '検索・現在地・地図タップで場所を選択';
 
   const submit = () => {
     if (!title.trim()) {
@@ -76,7 +82,9 @@ export default function CreateEventScreen() {
       setAddress(query);
       await selectLocation(result[0].latitude, result[0].longitude);
     } catch {
-      Alert.alert('場所を検索できませんでした', '通信状態を確認するか、地図上で場所を選択してください。');
+      Alert.alert('場所を検索できませんでした', Platform.OS === 'web'
+        ? '通信状態を確認するか、場所を直接入力してください。'
+        : '通信状態を確認するか、地図上で場所を選択してください。');
     } finally { setLocationLoading(false); }
   };
 
@@ -85,7 +93,9 @@ export default function CreateEventScreen() {
     setLocationLoading(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) return Alert.alert('位置情報の許可が必要です', '場所は検索または地図タップでも設定できます。');
+      if (!permission.granted) return Alert.alert('位置情報の許可が必要です', Platform.OS === 'web'
+        ? '場所は検索または直接入力でも設定できます。'
+        : '場所は検索または地図タップでも設定できます。');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       await selectLocation(current.coords.latitude, current.coords.longitude);
     } catch { Alert.alert('現在地を取得できませんでした'); } finally { setLocationLoading(false); }
@@ -107,12 +117,14 @@ export default function CreateEventScreen() {
           <TimeRangePicker startTime={startTime} endTime={endTime} timeMode={timeMode} onChange={(value) => { setStartTime(value.startTime); setEndTime(value.endTime); setTimeMode(value.timeMode); }} />
           <View style={styles.fieldGap} />
           <FormField label="場所" icon="location-outline" placeholder="会場名、住所、集合場所など" value={location} onChangeText={(value) => { setLocation(value); if (!mapOpen) setLocationQuery(value); }} />
-          <TouchableOpacity style={styles.mapToggle} onPress={() => { setMapOpen((current) => !current); setLocationQuery((current) => current || location); }}><View style={styles.mapToggleIcon}><Ionicons name="map-outline" size={19} color={palette.primary} /></View><View style={styles.mapToggleCopy}><Text style={styles.mapToggleTitle}>{mapOpen ? '地図を閉じる' : '地図から場所を設定'}</Text><Text style={styles.mapToggleText}>施設名・住所検索、現在地、地図タップに対応</Text></View><Ionicons name={mapOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.muted} /></TouchableOpacity>
+          <TouchableOpacity style={styles.mapToggle} onPress={() => { setMapOpen((current) => !current); setLocationQuery((current) => current || location); }}><View style={styles.mapToggleIcon}><Ionicons name="map-outline" size={19} color={palette.primary} /></View><View style={styles.mapToggleCopy}><Text style={styles.mapToggleTitle}>{mapOpen ? '地図を閉じる' : '地図から場所を設定'}</Text><Text style={styles.mapToggleText}>{mapSelectionHint}</Text></View><Ionicons name={mapOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.muted} /></TouchableOpacity>
           {mapOpen ? <View style={styles.mapPanel}>
-            <View style={styles.mapSearch}><Ionicons name="search" size={18} color={palette.muted} /><TextInput style={styles.mapSearchInput} value={locationQuery} onChangeText={setLocationQuery} placeholder="施設名・駅名・住所で検索" placeholderTextColor="#9AA39E" returnKeyType="search" onSubmitEditing={searchLocation} /><TouchableOpacity style={styles.mapSearchButton} onPress={searchLocation}>{locationLoading ? <ActivityIndicator size="small" color={palette.surface} /> : <Text style={styles.mapSearchButtonText}>検索</Text>}</TouchableOpacity></View>
+            {Platform.OS === 'web'
+              ? <View style={styles.webMapNotice}><Ionicons name="information-circle-outline" size={18} color={palette.primary} /><Text style={styles.webMapNoticeText}>会場名や住所は上の「場所」欄へ入力してください。地図は現在地を選ぶと移動します。</Text></View>
+              : <View style={styles.mapSearch}><Ionicons name="search" size={18} color={palette.muted} /><TextInput style={styles.mapSearchInput} value={locationQuery} onChangeText={setLocationQuery} placeholder="施設名・駅名・住所で検索" placeholderTextColor="#9AA39E" returnKeyType="search" onSubmitEditing={searchLocation} /><TouchableOpacity style={styles.mapSearchButton} onPress={searchLocation}>{locationLoading ? <ActivityIndicator size="small" color={palette.surface} /> : <Text style={styles.mapSearchButtonText}>検索</Text>}</TouchableOpacity></View>}
             <TouchableOpacity style={styles.currentLocation} onPress={useCurrentLocation}><Ionicons name="navigate" size={16} color={palette.primary} /><Text style={styles.currentLocationText}>現在地へ移動</Text></TouchableOpacity>
             <View style={styles.map}><LocationMap latitude={latitude} longitude={longitude} onSelect={selectLocation} /></View>
-            <View style={styles.selectedPlace}><Ionicons name="location" size={18} color={palette.accent} /><View style={styles.selectedCopy}><Text style={styles.selectedName}>{hasSelectedCoordinates ? location || '設定した場所' : '検索・現在地・地図タップで場所を選択'}</Text><Text style={styles.selectedAddress}>{hasSelectedCoordinates ? address || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : '初期表示：東京駅周辺'}</Text></View></View>
+            <View style={styles.selectedPlace}><Ionicons name="location" size={18} color={palette.accent} /><View style={styles.selectedCopy}><Text style={styles.selectedName}>{hasSelectedCoordinates ? location || '設定した場所' : mapSelectionEmpty}</Text><Text style={styles.selectedAddress}>{hasSelectedCoordinates ? address || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : '初期表示：東京駅周辺'}</Text></View></View>
           </View> : null}
           <FormField label="イベントの説明" hint="任意" icon="document-text-outline" placeholder="持ち物や連絡事項を書きましょう" value={description} onChangeText={setDescription} multiline />
           <FormField label="最初の参加費" hint="他の集金は作成後に追加可能" icon="wallet-outline" placeholder="0" value={initialFee} onChangeText={setInitialFee} keyboardType="number-pad" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} blurOnSubmit />
@@ -145,7 +157,7 @@ const styles = StyleSheet.create({
   sectionHint: { color: palette.muted, fontSize: 12, marginTop: 3 },
   selection: { maxWidth: '48%', color: palette.primary, fontSize: 13, fontWeight: '800', textAlign: 'right' },
   fieldGap: { height: 20 },
-  mapToggle: { minHeight: 62, borderRadius: 18, backgroundColor: palette.primarySoft, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 18 }, mapToggleIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' }, mapToggleCopy: { flex: 1, marginHorizontal: 10 }, mapToggleTitle: { color: palette.primary, fontSize: 12, fontWeight: '900' }, mapToggleText: { color: palette.muted, fontSize: 11, marginTop: 3 }, mapPanel: { borderRadius: 20, backgroundColor: palette.surface, overflow: 'hidden', marginTop: -10, marginBottom: 18, borderWidth: 1, borderColor: palette.line }, mapSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, backgroundColor: palette.canvas, margin: 11, marginBottom: 0, borderRadius: 15 }, mapSearchInput: { flex: 1, color: palette.ink, fontSize: 12, paddingHorizontal: 9 }, mapSearchButton: { width: 58, height: 42, marginRight: 4, borderRadius: 12, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' }, mapSearchButtonText: { color: palette.surface, fontSize: 13, fontWeight: '900' }, currentLocation: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 10 }, currentLocationText: { color: palette.primary, fontSize: 13, fontWeight: '800', marginLeft: 5 }, map: { height: 260, overflow: 'hidden' }, selectedPlace: { minHeight: 62, padding: 12, flexDirection: 'row', alignItems: 'center' }, selectedCopy: { flex: 1, marginLeft: 9 }, selectedName: { color: palette.ink, fontSize: 12, fontWeight: '900' }, selectedAddress: { color: palette.muted, fontSize: 12, marginTop: 3 },
+  mapToggle: { minHeight: 62, borderRadius: 18, backgroundColor: palette.primarySoft, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 18 }, mapToggleIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' }, mapToggleCopy: { flex: 1, marginHorizontal: 10 }, mapToggleTitle: { color: palette.primary, fontSize: 12, fontWeight: '900' }, mapToggleText: { color: palette.muted, fontSize: 11, marginTop: 3 }, mapPanel: { borderRadius: 20, backgroundColor: palette.surface, overflow: 'hidden', marginTop: -10, marginBottom: 18, borderWidth: 1, borderColor: palette.line }, mapSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, backgroundColor: palette.canvas, margin: 11, marginBottom: 0, borderRadius: 15 }, mapSearchInput: { flex: 1, color: palette.ink, fontSize: 12, paddingHorizontal: 9 }, mapSearchButton: { width: 58, height: 42, marginRight: 4, borderRadius: 12, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' }, mapSearchButtonText: { color: palette.surface, fontSize: 13, fontWeight: '900' }, webMapNotice: { margin: 11, marginBottom: 0, borderRadius: 15, backgroundColor: palette.primarySoft, flexDirection: 'row', alignItems: 'center', padding: 12 }, webMapNoticeText: { flex: 1, marginLeft: 8, color: palette.primary, fontSize: 12, lineHeight: 18 }, currentLocation: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 10 }, currentLocationText: { color: palette.primary, fontSize: 13, fontWeight: '800', marginLeft: 5 }, map: { height: 260, overflow: 'hidden' }, selectedPlace: { minHeight: 62, padding: 12, flexDirection: 'row', alignItems: 'center' }, selectedCopy: { flex: 1, marginLeft: 9 }, selectedName: { color: palette.ink, fontSize: 12, fontWeight: '900' }, selectedAddress: { color: palette.muted, fontSize: 12, marginTop: 3 },
   nextInfo: { borderRadius: 19, borderWidth: 1, borderStyle: 'dashed', borderColor: '#B8C3BC', padding: 15 },
   nextTitle: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },

@@ -84,6 +84,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f04675d6-63b1-4df9-838f-fdc0e08a2084"
+      }
+    },
+    "owner": "misosi"
   }
 }

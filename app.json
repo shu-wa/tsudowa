@@ -12,7 +12,6 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.shuwa.tsudowa",
-      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,8 +24,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.shuwa.tsudowa",
-      "versionCode": 1
+      "package": "com.shuwa.tsudowa"
     },
     "web": {
       "output": "single",

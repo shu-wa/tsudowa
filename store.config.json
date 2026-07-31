@@ -1,0 +1,67 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0",
+    "copyright": "2026 玉木 秀杷",
+    "categories": [
+      "SOCIAL_NETWORKING",
+      "LIFESTYLE"
+    ],
+    "release": {
+      "automaticRelease": false
+    },
+    "info": {
+      "ja": {
+        "title": "TSUDOWA",
+        "subtitle": "イベントの予定・会話・集金をひとつに",
+        "description": "TSUDOWAは、イベントごとに必要な連絡と情報をひとつにまとめるコミュニケーションアプリです。\n\nLINEなどで毎回グループを作ったり、初対面の参加者を友だち登録したりする必要はありません。主催者が発行した招待コードを確認し、イベント名と日時を見てから参加できます。\n\n主な機能\n\n- 開始日時または開始・終了時間を設定したイベント作成\n- 地図検索と現在地を利用した場所設定\n- 複数日に対応したタイムフロー\n- 参加者一覧、参加・未定・不参加の回答\n- イベント参加者限定のチャットと写真共有\n- 参加費、食事代、交通費、宿泊費など複数の集金記録\n- 主催者・共同主催者による支払状態の管理\n- 日程候補の作成と参加可否の投票\n- 端末カレンダーへの予定追加とリマインダー\n- 開催後のイベントを思い出として残すアーカイブ\n- 通報、ブロック、データ書き出し、アカウント削除\n\nTSUDOWAは実際の送金や決済を行いません。現金、PayPayなど、当事者間で行った支払いの状態だけを記録します。",
+        "keywords": [
+          "イベント",
+          "予定",
+          "スケジュール",
+          "グループ",
+          "チャット",
+          "集金",
+          "旅行",
+          "幹事",
+          "出欠",
+          "招待"
+        ],
+        "promoText": "招待コードで気軽に集合。日時、場所、タイムフロー、参加者、チャット、立替・集金状況まで、イベントに必要な情報をひとつにまとめられます。",
+        "marketingUrl": "https://tsudowa.app/",
+        "supportUrl": "https://tsudowa.app/support",
+        "privacyPolicyUrl": "https://tsudowa.app/privacy",
+        "privacyChoicesUrl": "https://tsudowa.app/account-deletion"
+      }
+    },
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": true,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": true,
+      "parentalControls": false,
+      "userGeneratedContent": true
+    }
+  }
+}

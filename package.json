@@ -2,7 +2,7 @@
   "name": "tsudowa",
   "main": "expo-router/entry",
   "version": "0.14.2",
-  "packageManager": "pnpm@11.9.0",
+  "packageManager": "pnpm@10.14.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",

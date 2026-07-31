@@ -229,15 +229,14 @@ export async function syncCloudMessage(eventId: string, messageId: string, body:
     if (uploadError) throw uploadError;
   }
 
-  const { error } = await supabase.from('messages').insert({
-    id: messageId,
-    event_id: eventId,
-    author_id: data.user.id,
-    body,
-    image_path: imagePath ?? null,
-    image_mime_type: image?.mimeType ?? null,
-    image_width: image?.width ?? null,
-    image_height: image?.height ?? null,
+  const { error } = await supabase.rpc('send_event_message', {
+    message_id: messageId,
+    target_event_id: eventId,
+    message_body: body,
+    message_image_path: imagePath ?? null,
+    message_image_mime_type: image?.mimeType ?? null,
+    message_image_width: image?.width ?? null,
+    message_image_height: image?.height ?? null,
   });
   if (error) {
     if (imagePath) await supabase.storage.from(CHAT_MEDIA_BUCKET).remove([imagePath]);

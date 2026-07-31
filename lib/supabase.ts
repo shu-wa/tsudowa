@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authStorage } from '@/lib/auth-storage';
 import { createClient, processLock, SupabaseClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
@@ -23,10 +23,11 @@ export const isSupabaseConfigured = Boolean(
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabasePublishableKey!, {
     auth: {
-      storage: isStaticWebRender ? staticRenderStorage : AsyncStorage,
+      storage: isStaticWebRender ? staticRenderStorage : authStorage,
       autoRefreshToken: !isStaticWebRender,
       persistSession: !isStaticWebRender,
       detectSessionInUrl: false,
+      flowType: 'pkce',
       lock: processLock,
     },
   })

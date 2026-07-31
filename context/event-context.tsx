@@ -28,6 +28,7 @@ import {
   UserProfile,
 } from '@/types/event';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authStorage } from '@/lib/auth-storage';
 import * as Crypto from 'expo-crypto';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -130,6 +131,7 @@ export function EventProvider({ children }: PropsWithChildren) {
   const { user, isConfigured } = useAuth();
   const storageKey = `${STORAGE_KEY}/${user?.id ?? 'local'}`;
   const legacyStorageKey = `${LEGACY_STORAGE_KEY}/${user?.id ?? 'local'}`;
+  const dataStorage = isConfigured ? authStorage : AsyncStorage;
   const [events, setEvents] = useState<EventItem[]>([]);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -147,37 +149,40 @@ export function EventProvider({ children }: PropsWithChildren) {
     setReports([]);
     setConsentHistory([]);
     setBlockedUsers([]);
-    AsyncStorage.getItem(storageKey)
+    dataStorage.getItem(storageKey)
       .then(async (stored) => {
         if (stored) return stored;
-        const legacyStored = await AsyncStorage.getItem(legacyStorageKey);
+        const legacyStored = await dataStorage.getItem(legacyStorageKey);
         if (!legacyStored) return null;
-        await AsyncStorage.setItem(storageKey, legacyStored);
-        await AsyncStorage.removeItem(legacyStorageKey);
+        await dataStorage.setItem(storageKey, legacyStored);
+        await dataStorage.removeItem(legacyStorageKey);
         return legacyStored;
       })
       .then((stored) => {
         if (!active || !stored) return;
         const parsed = JSON.parse(stored) as { events?: EventItem[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] };
-        if (parsed.events) setEvents(normalizeEvents(parsed.events).filter((event) => !LEGACY_SAMPLE_EVENT_IDS.has(event.id)));
+        if (!isConfigured && parsed.events) setEvents(normalizeEvents(parsed.events).filter((event) => !LEGACY_SAMPLE_EVENT_IDS.has(event.id)));
         if (parsed.profile) {
           const legacyDefaultCity = parsed.profile.name === 'Test' && parsed.profile.handle === '@tamasyu0202' && parsed.profile.city === 'Tokyo';
           setProfile(legacyDefaultCity ? { ...parsed.profile, city: '' } : parsed.profile);
         }
         if (parsed.settings) setSettings({ ...defaultSettings, ...parsed.settings });
-        if (parsed.reports) setReports(parsed.reports);
+        if (!isConfigured && parsed.reports) setReports(parsed.reports);
         if (parsed.consentHistory) setConsentHistory(parsed.consentHistory);
-        if (parsed.blockedUsers) setBlockedUsers(parsed.blockedUsers);
+        if (!isConfigured && parsed.blockedUsers) setBlockedUsers(parsed.blockedUsers);
       })
       .catch(() => undefined)
       .finally(() => active && setIsHydrated(true));
     return () => { active = false; };
-  }, [legacyStorageKey, storageKey]);
+  }, [dataStorage, isConfigured, legacyStorageKey, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
-    AsyncStorage.setItem(storageKey, JSON.stringify({ events, profile, settings, reports, consentHistory, blockedUsers })).catch(() => undefined);
-  }, [blockedUsers, consentHistory, events, isHydrated, profile, reports, settings, storageKey]);
+    const persisted = isConfigured
+      ? { profile: { ...profile, email: undefined }, settings, consentHistory }
+      : { events, profile, settings, reports, consentHistory, blockedUsers };
+    dataStorage.setItem(storageKey, JSON.stringify(persisted)).catch(() => undefined);
+  }, [blockedUsers, consentHistory, dataStorage, events, isConfigured, isHydrated, profile, reports, settings, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -602,14 +607,13 @@ export function EventProvider({ children }: PropsWithChildren) {
       if (reportingSelf) return '自分自身を通報することはできません。';
       if (supabase) {
         if (!user) return 'ログイン情報を確認できません。もう一度ログインしてください。';
-        const { error } = await supabase.from('safety_reports').insert({
-        reporter_id: user.id,
-        event_id: report.eventId?.match(/^[0-9a-f-]{36}$/i) ? report.eventId : null,
-        message_id: report.messageId?.match(/^[0-9a-f-]{36}$/i) ? report.messageId : null,
-        target_user_id: report.targetUserId?.match(/^[0-9a-f-]{36}$/i) ? report.targetUserId : null,
-        target_user_name: report.targetUserName,
-        reason: report.reason,
-        details: report.details,
+        const { error } = await supabase.rpc('submit_safety_report', {
+          target_event_id: report.eventId?.match(/^[0-9a-f-]{36}$/i) ? report.eventId : null,
+          target_message_id: report.messageId?.match(/^[0-9a-f-]{36}$/i) ? report.messageId : null,
+          reported_user_id: report.targetUserId?.match(/^[0-9a-f-]{36}$/i) ? report.targetUserId : null,
+          reported_user_name: report.targetUserName ?? null,
+          report_reason: report.reason,
+          report_details: report.details ?? null,
         });
         if (error) return '通報を送信できませんでした。通信状態を確認して、もう一度お試しください。';
       }
@@ -651,7 +655,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         if (error) return 'サーバー上のアカウントを削除できませんでした。通信状態を確認して、もう一度お試しください。';
         await supabase.auth.signOut({ scope: 'local' });
       }
-      await AsyncStorage.removeItem(storageKey);
+      await Promise.all([dataStorage.removeItem(storageKey), dataStorage.removeItem(legacyStorageKey)]);
       setEvents([]);
       setProfile(defaultProfile);
       setSettings(defaultSettings);
@@ -834,7 +838,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }).catch(() => undefined);
       return event;
     },
-  }), [blockedUsers, consentHistory, events, isHydrated, profile, reports, settings, storageKey, user]);
+  }), [blockedUsers, consentHistory, dataStorage, events, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 }

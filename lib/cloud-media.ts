@@ -23,7 +23,7 @@ export async function createAppImageUrls(paths: string[]) {
   const urls = new Map<string, string>();
   if (!supabase || paths.length === 0) return urls;
   const uniquePaths = [...new Set(paths)];
-  const { data, error } = await supabase.storage.from(APP_MEDIA_BUCKET).createSignedUrls(uniquePaths, 7 * 24 * 60 * 60);
+  const { data, error } = await supabase.storage.from(APP_MEDIA_BUCKET).createSignedUrls(uniquePaths, 60 * 60);
   if (error) return urls;
   for (const item of data ?? []) {
     if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);

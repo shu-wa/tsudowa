@@ -14,6 +14,7 @@ type AuthContextValue = {
   signUp: (email: string, password: string) => Promise<AuthResult>;
   sendPasswordReset: (email: string) => Promise<AuthResult>;
   updatePassword: (password: string) => Promise<AuthResult>;
+  reauthenticate: (password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
 };
 
@@ -46,14 +47,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const client = supabase;
     const applyAuthUrl = async (url: string) => {
       try {
-        const [base, hash = ''] = url.split('#');
-        const query = new URL(base).searchParams;
-        const hashParams = new URLSearchParams(hash);
-        const code = query.get('code');
-        if (code) { await client.auth.exchangeCodeForSession(code); return; }
-        const accessToken = hashParams.get('access_token') ?? query.get('access_token');
-        const refreshToken = hashParams.get('refresh_token') ?? query.get('refresh_token');
-        if (accessToken && refreshToken) await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        const parsed = new URL(url);
+        const route = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, '');
+        const allowedProtocol = parsed.protocol === 'tsudowa:'
+          || (__DEV__ && (parsed.protocol === 'exp:' || (['http:', 'https:'].includes(parsed.protocol) && ['localhost', '127.0.0.1'].includes(parsed.hostname))));
+        const allowedRoute = route.split('/').some((part) => part === 'onboarding' || part === 'reset-password');
+        if (!allowedProtocol || !allowedRoute) return;
+        const code = parsed.searchParams.get('code');
+        if (code && code.length <= 512) await client.auth.exchangeCodeForSession(code);
       } catch { /* 不正なURLは無視し、認証画面に留める */ }
     };
     ExpoLinking.getInitialURL().then((url) => { if (url) void applyAuthUrl(url); });
@@ -86,6 +87,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
       const { error } = await supabase.auth.updateUser({ password });
       return error ? { ok: false, message: authErrorMessage(error.message) } : { ok: true };
+    },
+    reauthenticate: async (password) => {
+      if (!supabase || !session?.user.email) return { ok: false, message: 'ログイン情報を確認できません。もう一度ログインしてください。' };
+      const { error } = await supabase.auth.signInWithPassword({ email: session.user.email, password });
+      return error ? { ok: false, message: 'パスワードが正しくありません。' } : { ok: true };
     },
     signOut: async () => { await supabase?.auth.signOut(); },
   }), [isLoading, session]);

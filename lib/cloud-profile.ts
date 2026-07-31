@@ -9,21 +9,19 @@ export async function syncOnboardingToCloud(input: OnboardingInput, profile: Use
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id;
   if (!userId) return;
-  const recordedAt = new Date().toISOString();
   const { error: profileError } = await supabase.from('profiles').update({
     display_name: input.name.trim(),
     handle: profile.handle,
     city: profile.city,
     date_of_birth: input.dateOfBirth,
-    age_verified_at: recordedAt,
     avatar_color: profile.avatarColor,
   }).eq('id', userId);
   if (profileError) throw profileError;
-  const { error: consentError } = await supabase.from('consent_records').insert([
-    { user_id: userId, document: 'terms', version: legalConfig.termsVersion, accepted: true, recorded_at: recordedAt },
-    { user_id: userId, document: 'privacy', version: legalConfig.privacyVersion, accepted: true, recorded_at: recordedAt },
-    { user_id: userId, document: 'community', version: legalConfig.communityVersion, accepted: true, recorded_at: recordedAt },
-  ]);
+  const { error: consentError } = await supabase.rpc('record_legal_consents', {
+    terms_version: legalConfig.termsVersion,
+    privacy_version: legalConfig.privacyVersion,
+    community_version: legalConfig.communityVersion,
+  });
   if (consentError) throw consentError;
 }
 

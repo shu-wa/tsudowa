@@ -1,21 +1,42 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const allowedOrigin = (origin: string | null) => !origin
+  || origin === 'https://tsudowa.app'
+  || origin === 'https://www.tsudowa.app'
+  || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+const responseHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && allowedOrigin(origin) ? origin : 'https://tsudowa.app',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '600',
+  'Cache-Control': 'no-store, max-age=0',
+  'Pragma': 'no-cache',
+  'X-Content-Type-Options': 'nosniff',
+  'Vary': 'Origin',
+});
+
+const recentlyAuthenticated = (lastSignInAt?: string) => {
+  if (!lastSignInAt) return false;
+  const elapsed = Date.now() - new Date(lastSignInAt).getTime();
+  return elapsed >= -60_000 && elapsed <= 5 * 60_000;
 };
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'method_not_allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  const origin = request.headers.get('Origin');
+  const headers = responseHeaders(origin);
+  if (!allowedOrigin(origin)) return new Response(JSON.stringify({ error: 'origin_not_allowed' }), { status: 403, headers: { ...headers, 'Content-Type': 'application/json' } });
+  if (request.method === 'OPTIONS') return new Response('ok', { headers });
+  if (request.method !== 'POST') return new Response(JSON.stringify({ error: 'method_not_allowed' }), { status: 405, headers: { ...headers, 'Content-Type': 'application/json' } });
   const authorization = request.headers.get('Authorization');
-  if (!authorization?.startsWith('Bearer ')) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (!authorization?.startsWith('Bearer ')) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } });
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const token = authorization.slice('Bearer '.length);
   const { data: userData, error: userError } = await admin.auth.getUser(token);
-  if (userError || !userData.user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (userError || !userData.user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } });
+  if (!recentlyAuthenticated(userData.user.last_sign_in_at)) return new Response(JSON.stringify({ error: 'reauthentication_required' }), { status: 403, headers: { ...headers, 'Content-Type': 'application/json' } });
 
   const userId = userData.user.id;
 
@@ -67,10 +88,10 @@ Deno.serve(async (request) => {
 
   // 残りのプロフィール、参加情報、メッセージ、通報、ブロック等は外部キーのcascadeで削除されます。
   const { error } = await admin.auth.admin.deleteUser(userId, false);
-  if (error) return new Response(JSON.stringify({ error: 'deletion_failed' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  return new Response(JSON.stringify({ deleted: true, deleted_owned_events: ownedEventIds.length }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  if (error) return new Response(JSON.stringify({ error: 'deletion_failed' }), { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ deleted: true, deleted_owned_events: ownedEventIds.length }), { status: 200, headers: { ...headers, 'Content-Type': 'application/json' } });
 
   function failure(code: string) {
-    return new Response(JSON.stringify({ error: code }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: code }), { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } });
   }
 });

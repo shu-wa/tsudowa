@@ -57,6 +57,21 @@ if (appConfig.ios?.bundleIdentifier === 'com.shuwa.tsudowa' && appConfig.android
 } else {
   fail('iOS/AndroidアプリIDを com.shuwa.tsudowa へ統一してください');
 }
+const storeConfig = JSON.parse(read('store.config.json'));
+if (appConfig.version === '1.0.0' && packageJsonVersion() === appConfig.version && storeConfig.apple?.version === appConfig.version) {
+  pass('アプリとストアの正式版1.0.0を確認');
+} else {
+  fail('app.json、package.json、store.config.jsonのバージョンを正式版1.0.0へ統一してください');
+}
+if (
+  storeConfig.apple?.release?.automaticRelease === false
+  && storeConfig.apple?.advisory?.messagingAndChat === true
+  && storeConfig.apple?.advisory?.userGeneratedContent === true
+) {
+  pass('App Storeの手動公開とUGC申告を確認');
+} else {
+  fail('App Storeの手動公開、チャット、ユーザー生成コンテンツ申告を確認してください');
+}
 if (appConfig.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false) pass('iOS暗号化申告設定を確認');
 else fail('ITSAppUsesNonExemptEncryption の設定を確認してください');
 const imagePickerPlugin = appConfig.plugins?.find(
@@ -73,6 +88,10 @@ else fail('EAS projectId が未設定です。eas init でプロジェクトを�
 const packageJson = JSON.parse(read('package.json'));
 if (packageJson.dependencies?.['expo-image-picker'] === '~17.0.11') pass('Expo SDK 54対応の写真選択依存を確認');
 else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください');
+
+function packageJsonVersion() {
+  return JSON.parse(read('package.json')).version;
+}
 
 [
   'assets/images/brand-icon.png',
@@ -92,7 +111,25 @@ else fail('expo-image-pickerをExpo SDK 54対応版へ固定してください')
   'supabase/migrations/202607260002_chat_images.sql',
   'supabase/migrations/202607260006_media_leave_archive.sql',
   'supabase/migrations/202607260007_preserve_attendance_on_rejoin.sql',
+  'supabase/migrations/202607310001_security_hardening.sql',
+  'supabase/migrations/202608010001_content_moderation.sql',
+  'MODERATION_OPERATIONS_JA.md',
+  'store.config.json',
+  'store-assets/google-play/icon-512.png',
+  'store-assets/google-play/feature-graphic.png',
 ].forEach((file) => exists(file) ? pass(`${file} を確認`) : fail(`${file} がありません`));
+
+const eventContextSource = read('context/event-context.tsx');
+const moderationMigration = read('supabase/migrations/202608010001_content_moderation.sql');
+if (
+  /validateUserContent\(normalizedText\)/.test(eventContextSource)
+  && /messages_content_safety/.test(moderationMigration)
+  && /private\.is_moderator\(\)/.test(moderationMigration)
+) {
+  pass('投稿フィルターとモデレーター権限を確認');
+} else {
+  fail('クライアントとDBの投稿安全対策が接続されていません');
+}
 
 const dynamicAppConfig = read('app.config.js');
 if (/GOOGLE_MAPS_API_KEY/.test(dynamicAppConfig) && /googleMaps:\s*\{\s*apiKey/.test(dynamicAppConfig)) {

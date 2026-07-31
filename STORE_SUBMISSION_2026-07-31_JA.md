@@ -14,7 +14,7 @@
 
 - アプリ名: TSUDOWA
 - Bundle ID / Package name: `com.shuwa.tsudowa`
-- バージョン: 0.15.0
+- バージョン: 1.0.0
 - 提供国: 日本のみ
 - 既定言語: 日本語
 - 運営者: 玉木 秀杷（タマキ シュウワ）
@@ -92,9 +92,12 @@ TSUDOWAは、イベント単位で必要な情報とコミュニケーション�
 | Name | はい | App Functionality | 表示名、表示ID |
 | User ID | はい | App Functionality | Supabase Authのアカウント識別子 |
 | Precise Location | はい（保存した場合） | App Functionality | 現在地・地図検索からイベント場所を設定した場合 |
+| Coarse Location | はい | App Functionality / Security | 任意の市区町村、イベント場所、サービス保護用ログから概算され得る位置 |
 | Photos or Videos | はい | App Functionality | プロフィール、イベントカバー、チャットへの任意投稿 |
-| Other User Content | はい | App Functionality / Safety | イベント、予定、チャット、出欠、日程投票、通報内容 |
+| Emails or Text Messages | はい | App Functionality / Safety | イベント参加者間のアプリ内チャット |
+| Other User Content | はい | App Functionality / Safety | イベント、予定、出欠、日程投票、通報内容 |
 | Other Financial Info | はい | App Functionality | 費用・立替・支払状態のみ。カード・銀行・決済情報は取得しない |
+| Other Data Types | はい | App Functionality / Account Management / Safety | 生年月日、規約等への同意履歴、ブロック・モデレーション情報 |
 
 取得しないもの: Contacts、Health、Fitness、Browsing History、Search History、Advertising Data、Purchases、Payment Info、Crash Data、Performance Data、Device IDを使った追跡。
 
@@ -112,9 +115,9 @@ TSUDOWAは、イベント単位で必要な情報とコミュニケーション�
 
 申告対象候補:
 
-- Personal info: Name、Email address、User IDs、Address（イベント場所として入力された場合）、Other info
+- Personal info: Name、Email address、User IDs、Address（イベント場所として入力された場合）、Other info（生年月日・同意履歴）
 - Financial info: Other financial info（費用・立替・支払状態。決済情報ではない）
-- Location: Precise location
+- Location: Approximate location、Precise location
 - Photos and videos: Photos
 - Messages: Other in-app messages
 - App activity: Other user-generated content / Other actions（日程投票、出欠回答）
@@ -138,6 +141,8 @@ TSUDOWAはログインが必要なイベントコミュニケーションアプ�
 - 位置情報はイベント場所を現在地から探す操作を選んだ場合だけ使用します。
 - 写真ライブラリは利用者がプロフィール、イベント、チャットへ写真を設定する場合だけ使用します。
 - カレンダーは利用者がイベントを端末カレンダーへ追加する場合だけ使用します。
+- イベントとチャットは招待された参加者だけが閲覧できます。投稿前の禁止表現フィルター、利用者・メッセージ・イベント内容の通報、利用者ブロック、モデレーターによる非表示・削除とアカウント停止を実装しています。
+- 安全上の通報は重大性に応じて確認し、重大な脅迫、児童の性的搾取、個人情報の無断公開などへ優先的に対応します。公開連絡先は support@tsudowa.app です。
 
 ## 提出前に人の操作が必要な項目
 
@@ -146,7 +151,7 @@ TSUDOWAはログインが必要なイベントコミュニケーションアプ�
 - App Store Connectでアプリレコード、税務・契約、App Privacy、年齢区分、輸出コンプライアンスを入力する。
 - Google Play Consoleでアプリレコード、Data safety、App access、コンテンツレーティング、広告、対象年齢、削除URLを入力する。
 - 2023年11月13日以降に作成した個人Google Play開発者アカウントでは、12人以上のテスターが14日間連続で参加する閉鎖テストを完了し、製品版へのアクセスを申請する。
-- スクリーンショットは実際の0.15.0ビルドから取得し、実在する個人情報・招待コード・メールアドレスを写さない。
+- スクリーンショットは実際の1.0.0ビルドから取得し、実在する個人情報・招待コード・メールアドレスを写さない。
 
 ## 公式資料
 

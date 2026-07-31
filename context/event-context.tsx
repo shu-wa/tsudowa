@@ -691,8 +691,13 @@ export function EventProvider({ children }: PropsWithChildren) {
       try {
         message.imagePath = await syncCloudMessage(eventId, message.id, normalizedText, image);
       } catch (error) {
-        const messageText = error instanceof Error ? error.message : '';
+        const messageText = error instanceof Error
+          ? error.message
+          : error && typeof error === 'object' && 'message' in error
+            ? String(error.message)
+            : '';
         if (messageText === 'image_too_large') return '写真は8MB以下にしてください。';
+        if (messageText.includes('objectionable_content')) return 'コミュニティガイドラインにより、この内容は投稿できません。';
         return '写真またはメッセージを送信できませんでした。通信状態を確認して、もう一度お試しください。';
       }
       setEvents((current) => current.map((event) => event.id === eventId

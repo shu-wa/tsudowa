@@ -53,6 +53,7 @@ export default function EventDetailScreen() {
   const unreadCount = getUnreadMessageCount(event.id);
   const displayStatus = getEventDisplayStatus(event);
   const myParticipant = event.participants.find((participant) => participant.id === user?.id || (!user && participant.name === profile.name));
+  const hostParticipant = event.participants.find((participant) => participant.role === '主催者');
   const isHost = myParticipant?.role === '主催者';
   const myLeaveRequest = event.leaveRequests?.find((request) => request.userId === myParticipant?.id || request.mine);
 
@@ -185,6 +186,7 @@ export default function EventDetailScreen() {
             : <View style={styles.collectionReadonly}><Ionicons name="lock-closed-outline" size={17} color={palette.muted} /><Text style={styles.collectionReadonlyText}>集金の追加と支払状態の変更は主催者・共同主催者が行います</Text></View>}
         </>}
         <View style={styles.eventActions}>
+          {!isHost && hostParticipant ? <TouchableOpacity style={styles.reportEventButton} onPress={() => router.push({ pathname: '/safety/report', params: { eventId: event.id, targetUserId: hostParticipant.id, targetName: hostParticipant.name, targetContentLabel: `イベント「${event.title}」` } })}><Ionicons name="flag-outline" size={18} color={palette.muted} /><Text style={styles.reportEventText}>このイベントの内容を通報</Text></TouchableOpacity> : null}
           {!isHost && myParticipant ? <TouchableOpacity style={styles.leaveButton} onPress={confirmLeave}><Ionicons name={myLeaveRequest ? 'close-circle-outline' : 'exit-outline'} size={18} color={palette.danger} /><Text style={styles.leaveText}>{myLeaveRequest ? '脱退申請を取り消す' : '主催者へ脱退を申請'}</Text></TouchableOpacity> : null}
           {isHost ? <TouchableOpacity style={styles.deleteButton} onPress={confirmDelete}><Ionicons name="trash-outline" size={18} color={palette.danger} /><Text style={styles.deleteText}>イベントを削除</Text></TouchableOpacity> : null}
         </View>
@@ -226,6 +228,8 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 }, infoIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, infoCopy: { flex: 1, marginLeft: 12 }, infoLabel: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 3 }, infoValue: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 2 }, infoSub: { color: palette.muted, fontSize: 13 }, separator: { height: StyleSheet.hairlineWidth, backgroundColor: palette.line, marginLeft: 56 },
   sectionTitle: { marginHorizontal: 20, marginTop: 28, marginBottom: 13 }, eyebrow: { color: palette.accent, fontSize: 12, fontWeight: '900', letterSpacing: 1.6, marginBottom: 4 }, sectionHeading: { color: palette.ink, fontSize: 22, fontWeight: '900' },
   eventActions: { marginHorizontal: 20, marginTop: 30, gap: 10 },
+  reportEventButton: { height: 50, borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  reportEventText: { color: palette.muted, fontSize: 13, fontWeight: '800', marginLeft: 7 },
   leaveButton: { height: 50, borderRadius: 17, borderWidth: 1, borderColor: '#E7C6C2', backgroundColor: '#FFF8F7', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   leaveText: { color: palette.danger, fontSize: 13, fontWeight: '800', marginLeft: 7 },
   deleteButton: { height: 50, borderRadius: 17, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },

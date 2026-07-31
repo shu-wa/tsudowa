@@ -2,7 +2,7 @@
   "expo": {
     "name": "TSUDOWA",
     "slug": "tsudowa",
-    "version": "0.15.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/brand-icon.png",
     "scheme": "tsudowa",

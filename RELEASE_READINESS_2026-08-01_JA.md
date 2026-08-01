@@ -18,6 +18,15 @@
 - TypeScript、ESLint、Expo Doctor、Web export、リリース設定検査
 - App Store ConnectアプリレコードとEAS連携
 
+## 正式版ビルド
+
+- iOS App Store用: Version `1.0.0`、build `3`、EAS build `b2a349da-5676-4c72-bffe-5d2bd149cabb`（完成）
+- Android Google Play用AAB: Version `1.0.0`、versionCode `4`、EAS build `6e4ef80d-f6f8-4cc4-87c9-8e5cf780a987`（完成）
+- Android実機確認用APK: Version `1.0.0`、versionCode `4`、EAS build `0db87bfb-3fed-4901-a636-bd606bef5366`（完成）
+- すべてGitコミット `88c3b62359a6397ad6bdd549396f9a94fe67882e` から作成
+
+iOS build 3はEAS SubmitでApp Store Connectへの転送を開始済みです。ローカルCLIはApple側の処理待ち中に時間切れとなったため、App Store ConnectのTestFlightでVersion 1.0.0 / build 3が表示されることを確認してから先へ進みます。重複送信はしません。
+
 ## ビルド後にストア上で行う手動作業
 
 ### Apple

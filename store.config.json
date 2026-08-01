@@ -55,7 +55,7 @@
       "violenceRealisticProlongedGraphicOrSadistic": "NONE",
       "advertising": false,
       "ageAssurance": true,
-      "ageRatingOverrideV2": "NONE",
+      "ageRatingOverrideV2": "SIXTEEN_PLUS",
       "developerAgeRatingInfoUrl": null,
       "gunsOrOtherWeapons": "NONE",
       "healthOrWellnessTopics": false,

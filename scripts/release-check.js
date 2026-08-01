@@ -67,10 +67,11 @@ if (
   storeConfig.apple?.release?.automaticRelease === false
   && storeConfig.apple?.advisory?.messagingAndChat === true
   && storeConfig.apple?.advisory?.userGeneratedContent === true
+  && storeConfig.apple?.advisory?.ageRatingOverrideV2 === 'SIXTEEN_PLUS'
 ) {
-  pass('App Storeの手動公開とUGC申告を確認');
+  pass('App Storeの手動公開、16+、UGC申告を確認');
 } else {
-  fail('App Storeの手動公開、チャット、ユーザー生成コンテンツ申告を確認してください');
+  fail('App Storeの手動公開、16+、チャット、ユーザー生成コンテンツ申告を確認してください');
 }
 if (appConfig.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false) pass('iOS暗号化申告設定を確認');
 else fail('ITSAppUsesNonExemptEncryption の設定を確認してください');

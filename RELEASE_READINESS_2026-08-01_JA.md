@@ -25,7 +25,7 @@
 - Android実機確認用APK: Version `1.0.0`、versionCode `4`、EAS build `0db87bfb-3fed-4901-a636-bd606bef5366`（完成）
 - すべてGitコミット `88c3b62359a6397ad6bdd549396f9a94fe67882e` から作成
 
-iOS build 3はEAS SubmitでApp Store Connectへの転送を開始済みです。ローカルCLIはApple側の処理待ち中に時間切れとなったため、App Store ConnectのTestFlightでVersion 1.0.0 / build 3が表示されることを確認してから先へ進みます。重複送信はしません。
+iOS build 3はEAS SubmitでApp Store Connectへ転送済みです。2026-08-01にTestFlightでVersion 1.0.0 / build 3の表示を確認しました。重複送信は不要です。
 
 ## ビルド後にストア上で行う手動作業
 

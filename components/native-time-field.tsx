@@ -31,7 +31,7 @@ export function NativeTimeField({ label, value, onChange, open, onOpenChange }: 
       });
       return;
     }
-    onOpenChange(!open);
+    onOpenChange(true);
   };
 
   return <View style={styles.wrapper}>

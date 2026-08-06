@@ -12,9 +12,10 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "check:dates": "node scripts/date-regression-check.mjs",
+    "check:times": "node scripts/time-regression-check.mjs",
     "export:web": "expo export --platform web",
     "release:check": "node --env-file=.env ./scripts/release-check.js",
-    "release:verify": "pnpm check:dates && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
+    "release:verify": "pnpm check:dates && pnpm check:times && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

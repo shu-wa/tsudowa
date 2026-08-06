@@ -9,7 +9,7 @@ import { ScheduleItem } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/auth-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,6 +26,15 @@ export default function ScheduleItemEditorScreen() {
   const { user } = useAuth();
   const event = findEvent(id);
   const editingItem = event?.schedule.find((item) => item.id === scheduleId);
+  const editorKey = event ? `${event.id}:${editingItem?.id ?? 'new'}:${requestedDay ?? ''}` : null;
+  const initializedEditorKey = useRef(editorKey);
+  const initialEditorValues = useMemo(() => ({
+    day: editingItem?.day ?? requestedDay ?? event?.startDate ?? '',
+    time: editingItem?.time ?? event?.startTime ?? '09:00',
+    title: editingItem?.title ?? '',
+    note: editingItem?.note ?? '',
+    type: editingItem?.type ?? 'activity' as ScheduleItem['type'],
+  }), [editingItem?.day, editingItem?.note, editingItem?.time, editingItem?.title, editingItem?.type, event?.startDate, event?.startTime, requestedDay]);
   const [day, setDay] = useState(editingItem?.day ?? requestedDay ?? event?.startDate ?? '');
   const [time, setTime] = useState(editingItem?.time ?? event?.startTime ?? '09:00');
   const [timeOpen, setTimeOpen] = useState(false);
@@ -35,19 +44,14 @@ export default function ScheduleItemEditorScreen() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!editingItem) return;
-    setDay(editingItem.day);
-    setTime(editingItem.time);
-    setTitle(editingItem.title);
-    setNote(editingItem.note ?? '');
-    setType(editingItem.type);
-  }, [editingItem]);
-
-  useEffect(() => {
-    if (!event || editingItem) return;
-    if (!day) setDay(requestedDay ?? event.startDate);
-    if (!time) setTime(event.startTime ?? '09:00');
-  }, [day, editingItem, event, requestedDay, time]);
+    if (!editorKey || initializedEditorKey.current === editorKey) return;
+    initializedEditorKey.current = editorKey;
+    setDay(initialEditorValues.day);
+    setTime(initialEditorValues.time);
+    setTitle(initialEditorValues.title);
+    setNote(initialEditorValues.note);
+    setType(initialEditorValues.type);
+  }, [editorKey, initialEditorValues]);
 
   if (!event) return <SafeAreaView style={styles.empty}><Text style={styles.emptyText}>イベントが見つかりません</Text></SafeAreaView>;
   if (!isEventManager(event, user?.id, profile.name)) return <SafeAreaView style={styles.empty}><Text style={styles.emptyText}>主催者・共同主催者のみ編集できます</Text></SafeAreaView>;

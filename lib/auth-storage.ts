@@ -40,8 +40,37 @@ const removeGeneration = async (key: string, manifest: Manifest | null) => {
   )));
 };
 
+const pendingMutations = new Map<string, Promise<void>>();
+
+const afterPendingMutation = async (key: string) => {
+  await pendingMutations.get(key)?.catch(() => undefined);
+};
+
+const enqueueMutation = (key: string, operation: () => Promise<void>) => {
+  const previous = pendingMutations.get(key) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(operation);
+  pendingMutations.set(key, current);
+  return current.finally(() => {
+    if (pendingMutations.get(key) === current) pendingMutations.delete(key);
+  });
+};
+
+const writeSecureValue = async (key: string, value: string) => {
+  const chunks = value.match(new RegExp(`.{1,${CHUNK_SIZE}}`, 'gs')) ?? [''];
+  if (chunks.length > MAX_CHUNKS) throw new Error('secure_storage_value_too_large');
+  const previous = await readManifest(key);
+  const generation = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  await Promise.all(chunks.map((chunk, index) => (
+    SecureStore.setItemAsync(chunkKey(key, generation, index), chunk, secureOptions)
+  )));
+  await SecureStore.setItemAsync(manifestKey(key), JSON.stringify({ generation, count: chunks.length }), secureOptions);
+  await removeGeneration(key, previous);
+  await AsyncStorage.removeItem(key);
+};
+
 const nativeSecureStorage: StorageAdapter = {
   getItem: async (key: string) => {
+    await afterPendingMutation(key);
     const manifest = await readManifest(key);
     if (manifest) {
       const chunks = await Promise.all(Array.from({ length: manifest.count }, (_, index) => (
@@ -55,30 +84,19 @@ const nativeSecureStorage: StorageAdapter = {
     // One-time migration from the previous plaintext AsyncStorage session.
     const legacy = await AsyncStorage.getItem(key);
     if (!legacy) return null;
-    await nativeSecureStorage.setItem(key, legacy);
+    await writeSecureValue(key, legacy);
     await AsyncStorage.removeItem(key);
     return legacy;
   },
-  setItem: async (key: string, value: string) => {
-    const chunks = value.match(new RegExp(`.{1,${CHUNK_SIZE}}`, 'gs')) ?? [''];
-    if (chunks.length > MAX_CHUNKS) throw new Error('secure_storage_value_too_large');
-    const previous = await readManifest(key);
-    const generation = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-    await Promise.all(chunks.map((chunk, index) => (
-      SecureStore.setItemAsync(chunkKey(key, generation, index), chunk, secureOptions)
-    )));
-    await SecureStore.setItemAsync(manifestKey(key), JSON.stringify({ generation, count: chunks.length }), secureOptions);
-    await removeGeneration(key, previous);
-    await AsyncStorage.removeItem(key);
-  },
-  removeItem: async (key: string) => {
+  setItem: (key: string, value: string) => enqueueMutation(key, () => writeSecureValue(key, value)),
+  removeItem: (key: string) => enqueueMutation(key, async () => {
     const manifest = await readManifest(key);
     await removeGeneration(key, manifest);
     await Promise.all([
       SecureStore.deleteItemAsync(manifestKey(key), secureOptions),
       AsyncStorage.removeItem(key),
     ]);
-  },
+  }),
 };
 
 export const authStorage = Platform.OS === 'web' ? AsyncStorage : nativeSecureStorage;

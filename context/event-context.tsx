@@ -1,6 +1,6 @@
 import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
-import { fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
+import { fetchCloudOnboardingState, fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
 import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudEvent, deleteCloudSchedule, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, updateCloudSchedule } from '@/lib/cloud-events';
 import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/date-values';
@@ -154,8 +154,10 @@ const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event)
 
 export function EventProvider({ children }: PropsWithChildren) {
   const { user, isConfigured } = useAuth();
-  const storageKey = `${STORAGE_KEY}/${user?.id ?? 'local'}`;
-  const legacyStorageKey = `${LEGACY_STORAGE_KEY}/${user?.id ?? 'local'}`;
+  const authenticatedUserId = user?.id;
+  const authenticatedUserEmail = user?.email;
+  const storageKey = `${STORAGE_KEY}/${authenticatedUserId ?? 'local'}`;
+  const legacyStorageKey = `${LEGACY_STORAGE_KEY}/${authenticatedUserId ?? 'local'}`;
   const dataStorage = isConfigured ? authStorage : AsyncStorage;
   const [events, setEvents] = useState<EventItem[]>([]);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
@@ -183,23 +185,61 @@ export function EventProvider({ children }: PropsWithChildren) {
         await dataStorage.removeItem(legacyStorageKey);
         return legacyStored;
       })
-      .then((stored) => {
-        if (!active || !stored) return;
-        const parsed = JSON.parse(stored) as { events?: EventItem[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] };
-        if (!isConfigured && parsed.events) setEvents(normalizeEvents(parsed.events).filter((event) => !LEGACY_SAMPLE_EVENT_IDS.has(event.id)));
-        if (parsed.profile) {
-          const legacyDefaultCity = parsed.profile.name === 'Test' && parsed.profile.handle === '@tamasyu0202' && parsed.profile.city === 'Tokyo';
-          setProfile(legacyDefaultCity ? { ...parsed.profile, city: '' } : parsed.profile);
+      .then(async (stored) => {
+        if (!active) return;
+        const parsed = stored
+          ? JSON.parse(stored) as { events?: EventItem[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] }
+          : {};
+        let nextProfile = parsed.profile ?? defaultProfile;
+        const legacyDefaultCity = nextProfile.name === 'Test' && nextProfile.handle === '@tamasyu0202' && nextProfile.city === 'Tokyo';
+        if (legacyDefaultCity) nextProfile = { ...nextProfile, city: '' };
+        let nextSettings = { ...defaultSettings, ...parsed.settings };
+        let nextConsentHistory = parsed.consentHistory ?? [];
+
+        // Completion is an account property, not a device property. Restore it
+        // from the protected profile and consent rows after every new session.
+        if (isConfigured && authenticatedUserId) {
+          try {
+            const cloudState = await fetchCloudOnboardingState(authenticatedUserId);
+            if (cloudState) {
+              nextProfile = { ...nextProfile, ...cloudState.profile, email: authenticatedUserEmail };
+              nextConsentHistory = cloudState.consentHistory;
+              nextSettings = { ...nextSettings, onboardingCompleted: cloudState.completed };
+              if (cloudState.completed) {
+                const latestConsent = (document: ConsentRecord['document']) => (
+                  [...cloudState.consentHistory].reverse().find((record) => record.document === document)
+                );
+                const terms = latestConsent('terms');
+                const privacy = latestConsent('privacy');
+                const community = latestConsent('community');
+                nextSettings = {
+                  ...nextSettings,
+                  dateOfBirth: cloudState.dateOfBirth,
+                  termsAcceptedAt: terms?.recordedAt,
+                  privacyAcceptedAt: privacy?.recordedAt,
+                  communityAcceptedAt: community?.recordedAt,
+                  acceptedTermsVersion: terms?.version,
+                  acceptedPrivacyVersion: privacy?.version,
+                  acceptedCommunityVersion: community?.version,
+                };
+              }
+            }
+          } catch {
+            // Keep the encrypted local state when the network is temporarily unavailable.
+          }
         }
-        if (parsed.settings) setSettings({ ...defaultSettings, ...parsed.settings });
+        if (!active) return;
+        if (!isConfigured && parsed.events) setEvents(normalizeEvents(parsed.events).filter((event) => !LEGACY_SAMPLE_EVENT_IDS.has(event.id)));
+        setProfile(nextProfile);
+        setSettings(nextSettings);
         if (!isConfigured && parsed.reports) setReports(parsed.reports);
-        if (parsed.consentHistory) setConsentHistory(parsed.consentHistory);
+        setConsentHistory(nextConsentHistory);
         if (!isConfigured && parsed.blockedUsers) setBlockedUsers(parsed.blockedUsers);
       })
       .catch(() => undefined)
       .finally(() => active && setIsHydrated(true));
     return () => { active = false; };
-  }, [dataStorage, isConfigured, legacyStorageKey, storageKey]);
+  }, [authenticatedUserEmail, authenticatedUserId, dataStorage, isConfigured, legacyStorageKey, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -655,9 +695,8 @@ export function EventProvider({ children }: PropsWithChildren) {
       } catch {
         return 'プロフィールを登録できませんでした。通信状態を確認して、もう一度お試しください。';
       }
-      setProfile(nextProfile);
-      setSettings((current) => ({
-        ...current,
+      const nextSettings = {
+        ...settings,
         onboardingCompleted: true,
         dateOfBirth: input.dateOfBirth,
         termsAcceptedAt: recordedAt,
@@ -666,12 +705,25 @@ export function EventProvider({ children }: PropsWithChildren) {
         acceptedTermsVersion: TERMS_VERSION,
         acceptedPrivacyVersion: PRIVACY_VERSION,
         acceptedCommunityVersion: COMMUNITY_VERSION,
-      }));
-      setConsentHistory((current) => [...current,
+      };
+      const nextConsentHistory: ConsentRecord[] = [...consentHistory,
         { id: `terms-${Date.now()}`, document: 'terms', version: TERMS_VERSION, accepted: true, recordedAt },
         { id: `privacy-${Date.now()}`, document: 'privacy', version: PRIVACY_VERSION, accepted: true, recordedAt },
         { id: `community-${Date.now()}`, document: 'community', version: COMMUNITY_VERSION, accepted: true, recordedAt },
-      ]);
+      ];
+      // Persist before leaving onboarding. This removes the previous race where
+      // navigation could happen before the state-driven storage effect finished.
+      const persisted = isConfigured
+        ? { profile: { ...nextProfile, email: undefined }, settings: nextSettings, consentHistory: nextConsentHistory }
+        : { events, profile: nextProfile, settings: nextSettings, reports, consentHistory: nextConsentHistory, blockedUsers };
+      try {
+        await dataStorage.setItem(storageKey, JSON.stringify(persisted));
+      } catch {
+        return '登録情報を端末に安全に保存できませんでした。空き容量を確認して、もう一度お試しください。';
+      }
+      setProfile(nextProfile);
+      setSettings(nextSettings);
+      setConsentHistory(nextConsentHistory);
       return null;
     },
     setNotificationsEnabled: async (enabled) => {

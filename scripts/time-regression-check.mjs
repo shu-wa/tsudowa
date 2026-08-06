@@ -24,4 +24,12 @@ assert.doesNotMatch(pickerSource, /value=\{initialDate\}/, 'the picker must not 
 const scheduleSource = readFileSync(new URL('../app/event/[id]/schedule/new.tsx', import.meta.url), 'utf8');
 assert.match(scheduleSource, /initializedEditorKey\.current === editorKey/, 'realtime refreshes must not reinitialize an active schedule form');
 
+const appConfig = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
+assert.equal(appConfig.expo.ios.newArchEnabled, false, 'iOS must use the stable legacy native picker implementation on SDK 54');
+
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+assert.match(packageJson.dependencies['react-native-reanimated'], /^~3\.19\./, 'iOS legacy architecture requires the React Native 0.81-compatible Reanimated 3 line');
+assert.equal(packageJson.dependencies['react-native-worklets'], undefined, 'unused Worklets cannot be bundled with the iOS legacy architecture');
+assert.deepEqual(packageJson.expo?.install?.exclude, ['react-native-reanimated'], 'Expo dependency validation must record the intentional legacy-compatible version');
+
 console.log('Time regression checks passed.');

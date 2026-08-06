@@ -11,6 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
+      "newArchEnabled": false,
       "bundleIdentifier": "com.shuwa.tsudowa",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false

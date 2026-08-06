@@ -3,6 +3,13 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "packageManager": "pnpm@10.34.5",
+  "expo": {
+    "install": {
+      "exclude": [
+        "react-native-reanimated"
+      ]
+    }
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -13,9 +20,10 @@
     "typecheck": "tsc --noEmit",
     "check:dates": "node scripts/date-regression-check.mjs",
     "check:times": "node scripts/time-regression-check.mjs",
+    "check:onboarding": "node scripts/onboarding-regression-check.mjs",
     "export:web": "expo export --platform web",
     "release:check": "node --env-file=.env ./scripts/release-check.js",
-    "release:verify": "pnpm check:dates && pnpm check:times && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
+    "release:verify": "pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -49,12 +57,11 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-maps": "1.20.1",
-    "react-native-reanimated": "~4.1.1",
+    "react-native-reanimated": "~3.19.5",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.5.1"
+    "react-native-web": "~0.21.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

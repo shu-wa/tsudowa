@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   label: { color: palette.ink, fontSize: 13, fontWeight: '700' },
   hint: { color: palette.muted, fontSize: 13 },
-  field: { minHeight: 54, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
+  field: { minHeight: 54, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
   fieldMultiline: { minHeight: 112, alignItems: 'flex-start', paddingTop: 16 },
   multilineIcon: { marginTop: 1 },
   input: { flex: 1, color: palette.ink, fontSize: 14, marginLeft: 11, paddingVertical: 0 },

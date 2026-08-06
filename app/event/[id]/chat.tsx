@@ -1,4 +1,5 @@
 import { palette } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { useEvents } from '@/context/event-context';
 import { ChatImageInput } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,7 +7,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const messageDateKey = (createdAt: string) => {

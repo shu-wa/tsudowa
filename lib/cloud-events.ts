@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { AttendanceChoice, AvailabilityChoice, ChatImageInput, CollectionItem, EventDateTimeInput, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
 import { appImageExtension, createAppImageUrls, uploadAppImage } from '@/lib/cloud-media';
+import { normalizeEventDateRange, toDateString } from '@/lib/date-values';
 import * as Crypto from 'expo-crypto';
 
 export const isCloudId = (value?: string) => Boolean(value?.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));
@@ -31,6 +32,7 @@ type CloudEvent = {
   start_date: string; end_date: string; start_time: string; end_time?: string; time_mode: 'start' | 'range';
   location_name?: string; address?: string; latitude?: number; longitude?: number; capacity: number; status: string;
   cover_color: string; accent_color: string; cover_image_path?: string; members?: CloudMember[]; schedule?: CloudSchedule[];
+  archived_at?: string;
   collections?: CloudCollection[]; messages?: CloudMessage[];
   date_candidates?: CloudDateCandidate[];
   leave_requests?: CloudLeaveRequest[];
@@ -54,6 +56,11 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
   `).order('start_date', { ascending: true });
   if (error) throw error;
   const cloudEvents = (data ?? []) as CloudEvent[];
+  const memberUserIds = [...new Set(cloudEvents.flatMap((event) => (event.members ?? []).map((member) => member.user_id)))];
+  const { data: visibleProfiles } = memberUserIds.length
+    ? await supabase.from('profiles').select('id, display_name, avatar_color, avatar_path').in('id', memberUserIds)
+    : { data: [] };
+  const profileByUserId = new Map(((visibleProfiles ?? []) as CloudProfile[]).map((memberProfile) => [memberProfile.id, memberProfile]));
   const imagePaths = [...new Set(cloudEvents.flatMap((event) => (event.messages ?? []).map((message) => message.image_path).filter((path): path is string => Boolean(path))))];
   const signedImageUrls = new Map<string, string>();
   if (imagePaths.length) {
@@ -66,29 +73,36 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
   }
   const appImagePaths = [...new Set(cloudEvents.flatMap((event) => [
     event.cover_image_path,
-    ...(event.members ?? []).map((member) => member.profile?.avatar_path),
+    ...(event.members ?? []).map((member) => (member.profile ?? profileByUserId.get(member.user_id))?.avatar_path),
     ...(event.leave_requests ?? []).map((request) => request.profile?.avatar_path),
   ].filter((path): path is string => Boolean(path))))];
   const appImageUrls = await createAppImageUrls(appImagePaths);
   return cloudEvents.map((event) => {
+    const normalizedDates = normalizeEventDateRange(event.start_date, event.end_date);
     const members = (event.members ?? []).filter((member) => member.status === 'approved');
-    const participants = members.map((member) => ({
+    const participants = members.map((member) => {
+      const memberProfile = member.profile ?? profileByUserId.get(member.user_id);
+      return ({
       id: member.user_id,
-      name: member.profile?.display_name ?? 'メンバー',
-      initials: (member.profile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+      name: memberProfile?.display_name ?? 'メンバー',
+      initials: (memberProfile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
       role: member.role === 'host' ? '主催者' as const : member.role === 'cohost' ? '共同主催者' as const : '参加者' as const,
-      avatarColor: member.profile?.avatar_color ?? '#68736C',
-      avatarUri: member.profile?.avatar_path ? appImageUrls.get(member.profile.avatar_path) : undefined,
+      avatarColor: memberProfile?.avatar_color ?? '#68736C',
+      avatarUri: memberProfile?.avatar_path ? appImageUrls.get(memberProfile.avatar_path) : undefined,
       attendance: member.attendance_label ?? '参加',
-    }));
-    const joinRequests = (event.members ?? []).filter((member) => member.status === 'pending').map((member) => ({
+    });
+    });
+    const joinRequests = (event.members ?? []).filter((member) => member.status === 'pending').map((member) => {
+      const memberProfile = member.profile ?? profileByUserId.get(member.user_id);
+      return ({
       userId: member.user_id,
-      name: member.profile?.display_name ?? '新しいメンバー',
-      initials: (member.profile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
-      avatarColor: member.profile?.avatar_color ?? '#68736C',
-      avatarUri: member.profile?.avatar_path ? appImageUrls.get(member.profile.avatar_path) : undefined,
+      name: memberProfile?.display_name ?? 'メンバー',
+      initials: (memberProfile?.display_name ?? 'ME').split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+      avatarColor: memberProfile?.avatar_color ?? '#68736C',
+      avatarUri: memberProfile?.avatar_path ? appImageUrls.get(memberProfile.avatar_path) : undefined,
       requestedAt: member.joined_at,
-    }));
+    });
+    });
     const profileById = new Map(participants.map((participant) => [participant.id, participant]));
     return {
       id: event.id,
@@ -96,9 +110,9 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       category: event.category,
       tagline: event.tagline ?? '',
       host: profileById.get(event.owner_id)?.name ?? '主催者',
-      startDate: event.start_date,
-      endDate: event.end_date,
-      dateLabel: dateLabel(event.start_date, event.end_date),
+      startDate: normalizedDates.startDate,
+      endDate: normalizedDates.endDate,
+      dateLabel: dateLabel(normalizedDates.startDate, normalizedDates.endDate),
       startTime: event.start_time.slice(0, 5),
       endTime: event.end_time?.slice(0, 5),
       timeMode: event.time_mode,
@@ -133,7 +147,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
         note: candidate.note,
         votes: (candidate.votes ?? []).map((vote) => ({ participantId: vote.user_id, choice: vote.choice })),
       })),
-      schedule: (event.schedule ?? []).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).map((item) => ({ id: item.id, day: new Date(item.starts_at).toLocaleDateString('ja-JP'), time: new Date(item.starts_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }), title: item.title, note: item.note, type: item.item_type })),
+      schedule: (event.schedule ?? []).sort((a, b) => a.starts_at.localeCompare(b.starts_at)).map((item) => ({ id: item.id, day: toDateString(new Date(item.starts_at)), time: new Date(item.starts_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false }), title: item.title, note: item.note, type: item.item_type })),
       collections: (event.collections ?? []).map((collection) => ({ id: collection.id, title: collection.title, category: collection.category, paidByParticipantId: collection.paid_by_user_id, totalAmount: Number(collection.total_amount), splitMethod: collection.split_method, autoAssignNewMembers: collection.auto_assign_new_members ?? false, defaultShareAmount: collection.default_share_amount == null ? undefined : Number(collection.default_share_amount), dueDate: collection.due_date, note: collection.note, shares: (collection.shares ?? []).map((share) => ({ participantId: share.user_id, amount: Number(share.amount), paid: share.paid, paidAt: share.paid_at ? new Date(share.paid_at).toLocaleDateString('ja-JP') : undefined })) })),
       messages: (event.messages ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((message) => ({
         id: message.id,
@@ -152,6 +166,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
         imageHeight: message.image_height,
       })),
       chatLastReadAt: event.members?.find((member) => member.user_id === currentUserId)?.chat_read_at,
+      archivedAt: event.archived_at,
     };
   });
 }
@@ -179,6 +194,13 @@ export async function createCloudInvite(eventId: string) {
   const { data, error } = await supabase.rpc('create_event_invite', { target_event_id: eventId });
   if (error) throw error;
   return data as string;
+}
+
+export async function archiveCloudEvent(eventId: string) {
+  if (!supabase || !isCloudId(eventId)) return new Date().toISOString();
+  const { data, error } = await supabase.rpc('archive_event', { target_event_id: eventId });
+  if (error) throw error;
+  return String(data);
 }
 
 export async function joinCloudEvent(code: string) {
@@ -322,7 +344,22 @@ export async function syncCloudSchedule(event: EventItem, scheduleId: string, in
   const { data } = await supabase.auth.getUser(); if (!data.user) return;
   const scheduleDate = /^\d{4}-\d{2}-\d{2}$/.test(input.day) ? input.day : event.startDate;
   const start = new Date(`${scheduleDate}T${input.time}:00`);
-  await supabase.from('schedule_items').insert({ id: scheduleId, event_id: event.id, starts_at: start.toISOString(), title: input.title, note: input.note, item_type: input.type, created_by: data.user.id });
+  const { error } = await supabase.from('schedule_items').insert({ id: scheduleId, event_id: event.id, starts_at: start.toISOString(), title: input.title, note: input.note, item_type: input.type, created_by: data.user.id });
+  if (error) throw error;
+}
+
+export async function updateCloudSchedule(event: EventItem, scheduleId: string, input: NewScheduleInput) {
+  if (!supabase || !isCloudId(event.id) || !isCloudId(scheduleId)) return;
+  const scheduleDate = /^\d{4}-\d{2}-\d{2}$/.test(input.day) ? input.day : event.startDate;
+  const start = new Date(`${scheduleDate}T${input.time}:00`);
+  const { error } = await supabase.from('schedule_items').update({ starts_at: start.toISOString(), title: input.title, note: input.note, item_type: input.type }).eq('id', scheduleId).eq('event_id', event.id);
+  if (error) throw error;
+}
+
+export async function deleteCloudSchedule(eventId: string, scheduleId: string) {
+  if (!supabase || !isCloudId(eventId) || !isCloudId(scheduleId)) return;
+  const { error } = await supabase.from('schedule_items').delete().eq('id', scheduleId).eq('event_id', eventId);
+  if (error) throw error;
 }
 
 export async function syncCloudCollection(eventId: string, collection: CollectionItem) {

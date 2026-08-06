@@ -1,4 +1,5 @@
 import { palette } from '@/constants/theme';
+import { parseLocalDateKey, toDateString } from '@/lib/date-values';
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -12,16 +13,10 @@ type Props = {
 const weekDays = ['月', '火', '水', '木', '金', '土', '日'];
 
 const toDate = (value?: string) => {
-  const [year, month, day] = (value || '').split('-').map(Number);
-  return year && month && day ? new Date(year, month - 1, day) : new Date();
+  return parseLocalDateKey(value) ?? new Date();
 };
 
-export const toDateString = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+export { toDateString } from '@/lib/date-values';
 
 export const formatJapaneseDateRange = (start: string, end: string) => {
   const startValue = toDate(start);
@@ -95,18 +90,18 @@ export function DateRangeCalendar({ startDate, endDate, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.surface, borderRadius: 22, padding: 14 },
+  card: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 14 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
-  arrow: { width: 38, height: 38, borderRadius: 13, backgroundColor: palette.canvas, alignItems: 'center', justifyContent: 'center' },
-  month: { color: palette.ink, fontSize: 16, fontWeight: '900' },
+  arrow: { width: 38, height: 38, borderRadius: 6, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  month: { color: palette.ink, fontSize: 16, fontWeight: '700' },
   weekRow: { flexDirection: 'row', marginBottom: 5 },
   week: { width: '14.285%', textAlign: 'center', color: palette.muted, fontSize: 13, fontWeight: '700' },
   weekend: { color: palette.accent },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: '14.285%', height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  dayCell: { width: '14.285%', height: 39, alignItems: 'center', justifyContent: 'center', borderRadius: 4 },
   range: { backgroundColor: palette.primarySoft, borderRadius: 0 },
-  selected: { backgroundColor: palette.primary, borderRadius: 12 },
-  dayText: { color: palette.ink, fontSize: 13, fontWeight: '700' },
+  selected: { backgroundColor: palette.primary, borderRadius: 4 },
+  dayText: { color: palette.ink, fontSize: 13, fontWeight: '600' },
   outside: { color: '#B8BDB9' },
   selectedText: { color: palette.surface, fontWeight: '900' },
   guide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10 },

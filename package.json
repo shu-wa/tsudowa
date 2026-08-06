@@ -5,16 +5,16 @@
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "web:preview": "expo export --platform web && node scripts/serve-web.js",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "check:dates": "node scripts/date-regression-check.mjs",
     "export:web": "expo export --platform web",
     "release:check": "node --env-file=.env ./scripts/release-check.js",
-    "release:verify": "pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
+    "release:verify": "pnpm check:dates && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

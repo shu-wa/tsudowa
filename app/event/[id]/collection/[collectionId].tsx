@@ -1,11 +1,12 @@
 import { getCollectionCategory } from '@/constants/collections';
 import { palette } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { useEvents } from '@/context/event-context';
 import { useAuth } from '@/context/auth-context';
 import { isEventManager } from '@/lib/event-permissions';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CollectionDetailScreen() {

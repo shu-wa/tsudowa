@@ -11,15 +11,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-export const toTimeDate = (value?: string) => {
-  const [hours, minutes] = (value || '09:00').split(':').map(Number);
-  const date = new Date();
-  date.setHours(hours || 0, minutes || 0, 0, 0);
-  return date;
-};
-
-export const toTimeString = (date: Date) => `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-
 export function NativeTimeField({ label, value, onChange, open, onOpenChange }: Props) {
   return (
     <View style={styles.wrapper}>
@@ -38,7 +29,6 @@ export function NativeTimeField({ label, value, onChange, open, onOpenChange }: 
             onBlur: () => onOpenChange(false),
             style: webInputStyle,
           })}
-          <Text style={styles.system}>ブラウザ標準の時刻選択（5分単位）</Text>
         </View>
       </View>
     </View>
@@ -62,9 +52,8 @@ const webInputStyle = {
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 18 },
   label: { color: palette.ink, fontSize: 12, fontWeight: '800', marginBottom: 7 },
-  field: { minHeight: 68, borderRadius: 17, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
+  field: { minHeight: 68, borderRadius: 8, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
   fieldOpen: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
-  icon: { width: 36, height: 36, borderRadius: 12, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 36, height: 36, borderRadius: 6, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, marginLeft: 10 },
-  system: { color: palette.muted, fontSize: 11, marginTop: 1 },
 });

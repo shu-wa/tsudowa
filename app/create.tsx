@@ -1,16 +1,18 @@
 import { FormField } from '@/components/form-field';
 import { KeyboardDismissBar } from '@/components/keyboard-dismiss-bar';
 import { LocationMap } from '@/components/location-map';
-import { formatJapaneseDateRange, NativeDateRangePicker, toDateString } from '@/components/native-date-picker';
-import { TimeRangePicker, formatTimeLabel } from '@/components/time-range-picker';
+import { DateRangeCalendar, formatJapaneseDateRange, toDateString } from '@/components/date-range-calendar';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
+import { TimeRangePicker } from '@/components/time-range-picker';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { formatEventTimeLabel } from '@/lib/time-values';
 import { ChatImageInput, EventTimeMode } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
@@ -130,7 +132,7 @@ export default function CreateEventScreen() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.content} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} onScrollBeginDrag={Keyboard.dismiss} showsVerticalScrollIndicator={false}>
           <View style={styles.intro}>
-            <View style={styles.introIcon}><Ionicons name="sparkles" size={22} color={palette.accent} /></View>
+            <View style={styles.introIcon}><Ionicons name="calendar-outline" size={22} color={palette.accent} /></View>
             <View style={styles.introCopy}><Text style={styles.introTitle}>まずは基本情報から</Text><Text style={styles.introText}>あとからいつでも編集できます</Text></View>
           </View>
 
@@ -142,9 +144,9 @@ export default function CreateEventScreen() {
               : <><View style={styles.coverIcon}><Ionicons name="image-outline" size={24} color={palette.primary} /></View><Text style={styles.coverTitle}>イベントを表す写真を選ぶ</Text><Text style={styles.coverText}>作成後も主催者・共同主催者が変更できます</Text></>}
             <View style={styles.coverEdit}><Ionicons name={coverImage ? 'pencil' : 'add'} size={17} color={palette.surface} /></View>
           </TouchableOpacity>
-          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催日</Text><Text style={styles.sectionHint}>端末標準のカレンダーから選択</Text></View><Text style={styles.selection}>{formatJapaneseDateRange(startDate, endDate)}</Text></View>
-          <NativeDateRangePicker startDate={startDate} endDate={endDate} onChange={(start, end) => { setStartDate(start); setEndDate(end); }} />
-          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催時間</Text><Text style={styles.sectionHint}>開始時刻のみでも登録できます</Text></View><Text style={styles.selection}>{formatTimeLabel(startTime, endTime, timeMode)}</Text></View>
+          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催日</Text><Text style={styles.sectionHint}>カレンダーから開始日と終了日を選択</Text></View><Text style={styles.selection}>{formatJapaneseDateRange(startDate, endDate)}</Text></View>
+          <DateRangeCalendar startDate={startDate} endDate={endDate} onChange={(start, end) => { setStartDate(start); setEndDate(end); }} />
+          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催時間</Text><Text style={styles.sectionHint}>開始時刻のみでも登録できます</Text></View><Text style={styles.selection}>{formatEventTimeLabel(startTime, endTime, timeMode)}</Text></View>
           <TimeRangePicker startTime={startTime} endTime={endTime} timeMode={timeMode} onChange={(value) => { setStartTime(value.startTime); setEndTime(value.endTime); setTimeMode(value.timeMode); }} />
           <View style={styles.fieldGap} />
           <FormField label="場所" icon="location-outline" placeholder="会場名、住所、集合場所など" value={location} onChangeText={(value) => { setLocation(value); if (!mapOpen) setLocationQuery(value); }} />
@@ -178,29 +180,29 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas },
   flex: { flex: 1 },
   content: { padding: 20, paddingBottom: 22 },
-  intro: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.accentSoft, borderRadius: 19, padding: 14, marginBottom: 24 },
-  introIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: palette.surface, justifyContent: 'center', alignItems: 'center' },
+  intro: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.surface, borderLeftWidth: 3, borderLeftColor: palette.accent, padding: 14, marginBottom: 24 },
+  introIcon: { width: 40, height: 40, borderRadius: 6, backgroundColor: palette.primarySoft, justifyContent: 'center', alignItems: 'center' },
   introCopy: { marginLeft: 12 },
   introTitle: { color: palette.ink, fontSize: 14, fontWeight: '800', marginBottom: 3 },
   introText: { color: palette.muted, fontSize: 13 },
   photoLabel: { color: palette.ink, fontSize: 13, fontWeight: '800', marginTop: -4, marginBottom: 9 },
-  coverPicker: { height: 176, borderRadius: 22, backgroundColor: palette.primarySoft, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginBottom: 22, borderWidth: 1, borderColor: palette.line },
-  coverIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
-  coverTitle: { color: palette.primary, fontSize: 14, fontWeight: '900' },
-  coverText: { color: palette.muted, fontSize: 11, marginTop: 4 },
+  coverPicker: { height: 176, borderRadius: 10, backgroundColor: '#242A26', overflow: 'hidden', alignItems: 'center', justifyContent: 'center', marginBottom: 22, borderWidth: 1, borderColor: '#242A26' },
+  coverIcon: { width: 46, height: 46, borderRadius: 7, backgroundColor: '#E8E9E6', alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  coverTitle: { color: palette.surface, fontSize: 14, fontWeight: '900' },
+  coverText: { color: '#C8CBC7', fontSize: 11, marginTop: 4 },
   coverEdit: { position: 'absolute', right: 12, bottom: 12, width: 38, height: 38, borderRadius: 14, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' },
   sectionHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 6, marginBottom: 10 },
   sectionTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   sectionHint: { color: palette.muted, fontSize: 12, marginTop: 3 },
   selection: { maxWidth: '48%', color: palette.primary, fontSize: 13, fontWeight: '800', textAlign: 'right' },
   fieldGap: { height: 20 },
-  mapToggle: { minHeight: 62, borderRadius: 18, backgroundColor: palette.primarySoft, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 18 }, mapToggleIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' }, mapToggleCopy: { flex: 1, marginHorizontal: 10 }, mapToggleTitle: { color: palette.primary, fontSize: 12, fontWeight: '900' }, mapToggleText: { color: palette.muted, fontSize: 11, marginTop: 3 }, mapPanel: { borderRadius: 20, backgroundColor: palette.surface, overflow: 'hidden', marginTop: -10, marginBottom: 18, borderWidth: 1, borderColor: palette.line }, mapSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, backgroundColor: palette.canvas, margin: 11, marginBottom: 0, borderRadius: 15 }, mapSearchInput: { flex: 1, color: palette.ink, fontSize: 12, paddingHorizontal: 9 }, mapSearchButton: { width: 58, height: 42, marginRight: 4, borderRadius: 12, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' }, mapSearchButtonText: { color: palette.surface, fontSize: 13, fontWeight: '900' }, webMapNotice: { margin: 11, marginBottom: 0, borderRadius: 15, backgroundColor: palette.primarySoft, flexDirection: 'row', alignItems: 'center', padding: 12 }, webMapNoticeText: { flex: 1, marginLeft: 8, color: palette.primary, fontSize: 12, lineHeight: 18 }, currentLocation: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 10 }, currentLocationText: { color: palette.primary, fontSize: 13, fontWeight: '800', marginLeft: 5 }, map: { height: 260, overflow: 'hidden' }, selectedPlace: { minHeight: 62, padding: 12, flexDirection: 'row', alignItems: 'center' }, selectedCopy: { flex: 1, marginLeft: 9 }, selectedName: { color: palette.ink, fontSize: 12, fontWeight: '900' }, selectedAddress: { color: palette.muted, fontSize: 12, marginTop: 3 },
-  nextInfo: { borderRadius: 19, borderWidth: 1, borderStyle: 'dashed', borderColor: '#B8C3BC', padding: 15 },
+  mapToggle: { minHeight: 62, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 18 }, mapToggleIcon: { width: 38, height: 38, borderRadius: 6, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' }, mapToggleCopy: { flex: 1, marginHorizontal: 10 }, mapToggleTitle: { color: palette.primary, fontSize: 12, fontWeight: '900' }, mapToggleText: { color: palette.muted, fontSize: 11, marginTop: 3 }, mapPanel: { borderRadius: 8, backgroundColor: palette.surface, overflow: 'hidden', marginTop: -10, marginBottom: 18, borderWidth: 1, borderColor: palette.line }, mapSearch: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, backgroundColor: palette.canvas, margin: 11, marginBottom: 0, borderRadius: 6 }, mapSearchInput: { flex: 1, color: palette.ink, fontSize: 12, paddingHorizontal: 9 }, mapSearchButton: { width: 58, height: 42, marginRight: 4, borderRadius: 6, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' }, mapSearchButtonText: { color: palette.surface, fontSize: 13, fontWeight: '900' }, webMapNotice: { margin: 11, marginBottom: 0, borderLeftWidth: 2, borderLeftColor: palette.primary, backgroundColor: palette.primarySoft, flexDirection: 'row', alignItems: 'center', padding: 12 }, webMapNoticeText: { flex: 1, marginLeft: 8, color: palette.primary, fontSize: 12, lineHeight: 18 }, currentLocation: { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', paddingHorizontal: 13, paddingVertical: 10 }, currentLocationText: { color: palette.primary, fontSize: 13, fontWeight: '800', marginLeft: 5 }, map: { height: 260, overflow: 'hidden' }, selectedPlace: { minHeight: 62, padding: 12, flexDirection: 'row', alignItems: 'center' }, selectedCopy: { flex: 1, marginLeft: 9 }, selectedName: { color: palette.ink, fontSize: 12, fontWeight: '900' }, selectedAddress: { color: palette.muted, fontSize: 12, marginTop: 3 },
+  nextInfo: { borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 15 },
   nextTitle: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.primarySoft, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 10 },
+  chip: { flexDirection: 'row', alignItems: 'center', backgroundColor: palette.primarySoft, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 4 },
   chipText: { color: palette.primary, fontSize: 13, fontWeight: '700', marginLeft: 4 },
   bottom: { backgroundColor: palette.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, padding: 14 },
-  submit: { minHeight: 55, borderRadius: 18, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  submit: { minHeight: 55, borderRadius: 8, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   submitText: { color: palette.surface, fontSize: 15, fontWeight: '800', marginRight: 9 },
 });

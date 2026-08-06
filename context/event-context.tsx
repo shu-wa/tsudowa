@@ -2,9 +2,12 @@ import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
 import { fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
-import { cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudEvent, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule } from '@/lib/cloud-events';
+import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudEvent, deleteCloudSchedule, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, updateCloudSchedule } from '@/lib/cloud-events';
+import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/date-values';
+import { isEventArchived, isEventPast } from '@/lib/event-display';
 import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
 import { isEventManager } from '@/lib/event-permissions';
+import { formatEventTimeLabel } from '@/lib/time-values';
 import { useAuth } from '@/context/auth-context';
 import {
   AppSettings,
@@ -41,7 +44,7 @@ const defaultProfile: UserProfile = {
   handle: '@tamasyu0202',
   city: '',
   initials: 'TE',
-  avatarColor: '#285943',
+  avatarColor: '#173E33',
 };
 
 const defaultSettings: AppSettings = {
@@ -63,7 +66,9 @@ type EventContextValue = {
   isHydrated: boolean;
   addEvent: (input: NewEventInput) => EventItem;
   addCollection: (eventId: string, input: NewCollectionInput) => CollectionItem;
-  addScheduleItem: (eventId: string, input: NewScheduleInput) => void;
+  addScheduleItem: (eventId: string, input: NewScheduleInput) => Promise<string | null>;
+  updateScheduleItem: (eventId: string, scheduleId: string, input: NewScheduleInput) => Promise<string | null>;
+  deleteScheduleItem: (eventId: string, scheduleId: string) => Promise<string | null>;
   addMessage: (eventId: string, text: string, image?: ChatImageInput) => Promise<string | null>;
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
@@ -71,10 +76,11 @@ type EventContextValue = {
   updateProfile: (profile: UserProfile, image?: ChatImageInput) => Promise<string | null>;
   updateEventCover: (eventId: string, image: ChatImageInput) => Promise<string | null>;
   deleteEvent: (eventId: string) => Promise<string | null>;
+  archiveEvent: (eventId: string) => Promise<string | null>;
   requestEventLeave: (eventId: string) => Promise<string | null>;
   cancelEventLeave: (eventId: string) => Promise<string | null>;
   reviewEventLeave: (eventId: string, userId: string, decision: 'approved' | 'declined') => Promise<string | null>;
-  completeOnboarding: (input: OnboardingInput) => void;
+  completeOnboarding: (input: OnboardingInput) => Promise<string | null>;
   setNotificationsEnabled: (enabled: boolean) => Promise<string | null>;
   submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status'>) => Promise<string | null>;
   toggleBlockUser: (name: string, userId?: string) => void;
@@ -94,6 +100,7 @@ type EventContextValue = {
   setAvailabilityVote: (eventId: string, candidateId: string, choice: AvailabilityChoice) => Promise<string | null>;
   setMemberRole: (eventId: string, userId: string, role: 'cohost' | 'member') => Promise<string | null>;
   confirmDateCandidate: (eventId: string, candidateId: string) => Promise<string | null>;
+  refreshData: () => Promise<string | null>;
 };
 
 const EventContext = createContext<EventContextValue | null>(null);
@@ -108,24 +115,42 @@ const formatDateLabel = (start: string, end: string) => {
   return `${format(start)} – ${format(end, start.slice(0, 4) !== end.slice(0, 4))}`;
 };
 
-const formatTimeLabel = (start: string, end: string | undefined, mode: 'start' | 'range') =>
-  mode === 'range' && end ? `${start}–${end}` : `${start} 開始`;
+const normalizeScheduleDay = (value: string | undefined, fallback: string) => {
+  const strict = parseLocalDateKey(value);
+  if (strict) return toDateString(strict);
+  const legacy = /^(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?$/.exec(value ?? '');
+  if (!legacy) return fallback;
+  const parsed = new Date(Number(legacy[1]), Number(legacy[2]) - 1, Number(legacy[3]), 12);
+  return parsed.getFullYear() === Number(legacy[1])
+    && parsed.getMonth() === Number(legacy[2]) - 1
+    && parsed.getDate() === Number(legacy[3])
+    ? toDateString(parsed)
+    : fallback;
+};
 
-const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event) => ({
+const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event) => {
+  const normalizedDates = normalizeEventDateRange(event.startDate, event.endDate);
+  return ({
   ...event,
+  ...normalizedDates,
+  dateLabel: formatDateLabel(normalizedDates.startDate, normalizedDates.endDate),
   startTime: event.startTime ?? event.timeLabel.match(/\d{1,2}:\d{2}/)?.[0]?.padStart(5, '0') ?? '09:00',
   endTime: event.endTime ?? event.timeLabel.match(/\d{1,2}:\d{2}/g)?.[1]?.padStart(5, '0'),
   timeMode: event.timeMode ?? (event.timeLabel.match(/\d{1,2}:\d{2}/g)?.length === 2 ? 'range' : 'start'),
-  schedule: event.schedule ?? [],
+  schedule: (event.schedule ?? []).map((item) => ({
+    ...item,
+    day: normalizeScheduleDay(item.day, normalizedDates.startDate),
+  })).sort((a, b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`)),
   collections: event.collections ?? [],
   messages: (event.messages ?? []).map((message) => ({
     ...message,
-    createdAt: message.createdAt ?? new Date(`${event.startDate}T00:00:00`).toISOString(),
+    createdAt: message.createdAt ?? new Date(`${normalizedDates.startDate}T12:00:00`).toISOString(),
   })),
   joinRequests: event.joinRequests ?? [],
   leaveRequests: event.leaveRequests ?? [],
   dateCandidates: event.dateCandidates ?? [],
-}));
+  });
+});
 
 export function EventProvider({ children }: PropsWithChildren) {
   const { user, isConfigured } = useAuth();
@@ -265,6 +290,23 @@ export function EventProvider({ children }: PropsWithChildren) {
     consentHistory,
     blockedUsers,
     isHydrated,
+    refreshData: async () => {
+      if (!isConfigured || !user) return null;
+      try {
+        let cloudProfile = await fetchCloudProfile(user.id);
+        const hasLocalProfile = profile.name.trim() && profile.name !== '新しいメンバー';
+        if ((!cloudProfile || cloudProfile.name === '新しいメンバー') && hasLocalProfile) {
+          await syncProfileToCloud(profile);
+          cloudProfile = await fetchCloudProfile(user.id);
+        }
+        const cloudEvents = await fetchCloudEvents(user.id);
+        setEvents(cloudEvents);
+        if (cloudProfile) setProfile((current) => ({ ...current, ...cloudProfile, email: user.email }));
+        return null;
+      } catch {
+        return '情報を更新できませんでした。通信状態を確認してください。';
+      }
+    },
     findEvent: (id) => events.find((event) => event.id === id),
     joinByCode: (code) => events.find((event) => event.inviteCode === code.trim().toUpperCase()),
     previewEventByCode: async (code) => {
@@ -272,6 +314,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       if (!normalizedCode) return { error: '招待コードを入力してください。' };
       if (!supabase) {
         const localEvent = events.find((event) => event.inviteCode === normalizedCode);
+        if (localEvent && isEventArchived(localEvent)) return { error: 'このイベントはアーカイブ済みのため参加できません。' };
         return localEvent ? { preview: {
           eventId: localEvent.id,
           title: localEvent.title,
@@ -292,6 +335,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const localEvent = events.find((event) => event.inviteCode === code.trim().toUpperCase());
       if (!supabase) {
         if (!localEvent) return { error: 'イベントが見つかりません。招待コードを確認してください。' };
+        if (isEventArchived(localEvent)) return { error: 'このイベントはアーカイブ済みのため参加できません。' };
         const alreadyJoined = localEvent.participants.some((participant) => participant.id === 'me' || participant.name === profile.name);
         if (!alreadyJoined) setEvents((current) => current.map((event) => event.id !== localEvent.id ? event : {
           ...event,
@@ -301,6 +345,11 @@ export function EventProvider({ children }: PropsWithChildren) {
       }
       let result: Awaited<ReturnType<typeof joinCloudEvent>>;
       try {
+        if (profile.name.trim() && profile.name !== '新しいメンバー') {
+          // Profile repair is useful for older accounts, but must never block
+          // an otherwise valid invite join (for example after a stale web session).
+          await syncProfileToCloud(profile).catch(() => undefined);
+        }
         result = await joinCloudEvent(code);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -341,6 +390,8 @@ export function EventProvider({ children }: PropsWithChildren) {
       void syncCloudChatRead(eventId).catch(() => undefined);
     },
     createInviteCode: async (eventId) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || isEventArchived(targetEvent)) return null;
       try {
         const code = await createCloudInvite(eventId);
         if (code) setEvents((current) => current.map((event) => event.id === eventId ? { ...event, inviteCode: code } : event));
@@ -353,6 +404,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         ? targetEvent?.participants.find((participant) => participant.id === user.id)
         : targetEvent?.participants.find((participant) => participant.name === profile.name);
       if (!targetEvent || !currentParticipant) return 'このイベントの参加者ではありません。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       try {
         await syncCloudAttendance(eventId, attendance);
         setEvents((current) => current.map((event) => event.id !== eventId ? event : {
@@ -366,6 +418,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const targetEvent = events.find((event) => event.id === eventId);
       const request = targetEvent?.joinRequests?.find((item) => item.userId === userId);
       if (!targetEvent || !request) return '参加申請が見つかりません。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       try {
         await reviewCloudJoinRequest(eventId, userId, decision);
         setEvents((current) => current.map((event) => event.id !== eventId ? event : {
@@ -386,6 +439,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     addDateCandidate: async (eventId, input) => {
       const targetEvent = events.find((event) => event.id === eventId);
       if (!targetEvent) return 'イベントが見つかりません。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       const candidateId = Crypto.randomUUID();
       try {
         await syncCloudDateCandidate(eventId, candidateId, input);
@@ -403,6 +457,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const targetEvent = events.find((event) => event.id === eventId);
       const participantId = user?.id ?? targetEvent?.participants.find((participant) => participant.name === profile.name)?.id ?? 'me';
       if (!targetEvent?.dateCandidates?.some((candidate) => candidate.id === candidateId)) return '候補日が見つかりません。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       try {
         await syncCloudAvailabilityVote(candidateId, choice);
         setEvents((current) => current.map((event) => event.id !== eventId ? event : {
@@ -421,6 +476,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const targetEvent = events.find((event) => event.id === eventId);
       const target = targetEvent?.participants.find((participant) => participant.id === userId);
       if (!targetEvent || !target) return '参加者が見つかりません。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       if (target.role === '主催者') return '主催者本人の権限は変更できません。';
       try {
         await syncCloudMemberRole(eventId, userId, role);
@@ -437,7 +493,9 @@ export function EventProvider({ children }: PropsWithChildren) {
       }
     },
     confirmDateCandidate: async (eventId, candidateId) => {
-      const candidate = events.find((event) => event.id === eventId)?.dateCandidates?.find((item) => item.id === candidateId);
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (targetEvent && isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const candidate = targetEvent?.dateCandidates?.find((item) => item.id === candidateId);
       if (!candidate) return '候補日が見つかりません。';
       try {
         await confirmCloudDateCandidate(candidateId);
@@ -449,7 +507,7 @@ export function EventProvider({ children }: PropsWithChildren) {
           startTime: candidate.startTime,
           endTime: undefined,
           timeMode: 'start',
-          timeLabel: formatTimeLabel(candidate.startTime, undefined, 'start'),
+          timeLabel: formatEventTimeLabel(candidate.startTime, undefined, 'start'),
         }));
         return null;
       } catch {
@@ -482,6 +540,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     updateEventCover: async (eventId, image) => {
       const target = events.find((event) => event.id === eventId);
       if (!target || !isEventManager(target, user?.id, profile.name)) return '主催者または共同主催者のみ変更できます。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
       const previousUri = target.coverImageUri;
       setEvents((current) => current.map((event) => event.id === eventId ? { ...event, coverImageUri: image.uri } : event));
       try {
@@ -499,6 +558,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const host = target?.participants.find((participant) => participant.role === '主催者');
       const isHost = host && (host.id === user?.id || (!user && host.id === 'me'));
       if (!target || !isHost) return 'イベントを削除できるのは主催者だけです。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは削除できません。';
       try {
         await deleteCloudEvent(eventId, target.coverImagePath, target.messages.map((message) => message.imagePath).filter((path): path is string => Boolean(path)));
         setEvents((current) => current.filter((event) => event.id !== eventId));
@@ -507,8 +567,28 @@ export function EventProvider({ children }: PropsWithChildren) {
         return 'イベントを削除できませんでした。通信状態を確認してください。';
       }
     },
+    archiveEvent: async (eventId) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target || !isEventManager(target, user?.id, profile.name)) return 'アーカイブできるのは主催者・共同主催者だけです。';
+      if (isEventArchived(target)) return null;
+      if (!isEventPast(target)) return '終了したイベントのみアーカイブできます。';
+      try {
+        const archivedAt = await archiveCloudEvent(eventId);
+        setEvents((current) => current.map((event) => event.id === eventId ? { ...event, archivedAt } : event));
+        return null;
+      } catch (error) {
+        const message = error && typeof error === 'object' && 'message' in error
+          ? String(error.message)
+          : String(error);
+        if (message.includes('event_not_finished')) return 'イベントの終了時刻を過ぎてからアーカイブできます。';
+        if (message.includes('not_allowed')) return 'アーカイブできるのは主催者・共同主催者だけです。';
+        if (message.includes('event_not_found')) return 'イベントが見つかりません。ホームで再読み込みしてください。';
+        return 'アーカイブできませんでした。通信状態を確認して、もう一度お試しください。';
+      }
+    },
     requestEventLeave: async (eventId) => {
       const target = events.find((event) => event.id === eventId);
+      if (target && isEventArchived(target)) return 'アーカイブ済みのイベントからは脱退できません。';
       const myId = user?.id ?? 'me';
       const me = target?.participants.find((participant) => participant.id === myId || (!user && participant.name === profile.name));
       if (!target || !me) return 'このイベントの参加者ではありません。';
@@ -535,6 +615,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     },
     cancelEventLeave: async (eventId) => {
       const target = events.find((event) => event.id === eventId);
+      if (target && isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
       const myId = user?.id ?? 'me';
       if (!target?.leaveRequests?.some((request) => request.userId === myId || request.mine)) return '脱退申請が見つかりません。';
       try {
@@ -551,6 +632,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     reviewEventLeave: async (eventId, targetUserId, decision) => {
       const target = events.find((event) => event.id === eventId);
       if (!target || !isEventManager(target, user?.id, profile.name)) return '管理権限がありません。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
       try {
         await reviewCloudEventLeave(eventId, targetUserId, decision);
         setEvents((current) => current.map((event) => event.id !== eventId ? event : {
@@ -563,11 +645,16 @@ export function EventProvider({ children }: PropsWithChildren) {
         return '脱退申請を更新できませんでした。通信状態と権限を確認してください。';
       }
     },
-    completeOnboarding: (input) => {
+    completeOnboarding: async (input) => {
       const recordedAt = new Date().toISOString();
       const initials = input.name.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'ME';
       const handlePart = input.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
       const nextProfile = { ...profile, name: input.name.trim(), email: input.email.trim().toLowerCase(), initials, handle: `@${handlePart.length >= 2 ? handlePart : 'member'}` };
+      try {
+        await syncOnboardingToCloud(input, nextProfile);
+      } catch {
+        return 'プロフィールを登録できませんでした。通信状態を確認して、もう一度お試しください。';
+      }
       setProfile(nextProfile);
       setSettings((current) => ({
         ...current,
@@ -585,7 +672,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         { id: `privacy-${Date.now()}`, document: 'privacy', version: PRIVACY_VERSION, accepted: true, recordedAt },
         { id: `community-${Date.now()}`, document: 'community', version: COMMUNITY_VERSION, accepted: true, recordedAt },
       ]);
-      void syncOnboardingToCloud(input, nextProfile).catch(() => undefined);
+      return null;
     },
     setNotificationsEnabled: async (enabled) => {
       if (enabled) {
@@ -668,6 +755,9 @@ export function EventProvider({ children }: PropsWithChildren) {
       setEvents([]);
     },
     addMessage: async (eventId, text, image) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target) return 'イベントが見つかりません。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントには投稿できません。';
       const normalizedText = text.trim();
       if (!normalizedText && !image) return 'メッセージまたは写真を追加してください。';
       const validationError = normalizedText ? validateUserContent(normalizedText) : null;
@@ -706,27 +796,78 @@ export function EventProvider({ children }: PropsWithChildren) {
       return null;
     },
     updateEventDateTime: (eventId, input) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target || isEventArchived(target)) return;
+      const normalizedDates = normalizeEventDateRange(input.startDate, input.endDate);
+      const normalizedInput = { ...input, ...normalizedDates };
       setEvents((current) => current.map((event) => event.id !== eventId ? event : {
         ...event,
-        ...input,
-        dateLabel: formatDateLabel(input.startDate, input.endDate),
-        timeLabel: formatTimeLabel(input.startTime, input.endTime, input.timeMode),
+        ...normalizedInput,
+        dateLabel: formatDateLabel(normalizedInput.startDate, normalizedInput.endDate),
+        timeLabel: formatEventTimeLabel(normalizedInput.startTime, normalizedInput.endTime, normalizedInput.timeMode),
       }));
-      void syncCloudDateTime(eventId, input);
+      void syncCloudDateTime(eventId, normalizedInput);
     },
     updateEventLocation: (eventId, input) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target || isEventArchived(target)) return;
       setEvents((current) => current.map((event) => event.id === eventId ? { ...event, ...input } : event));
       void syncCloudLocation(eventId, input);
     },
-    addScheduleItem: (eventId, input) => {
+    addScheduleItem: async (eventId, input) => {
       const scheduleId = Crypto.randomUUID();
       const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || !isEventManager(targetEvent, user?.id, profile.name)) return '主催者・共同主催者のみ追加できます。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       setEvents((current) => current.map((event) => event.id === eventId
         ? { ...event, schedule: [...event.schedule, { ...input, id: scheduleId }] }
         : event));
-      if (targetEvent) void syncCloudSchedule(targetEvent, scheduleId, input);
+      try {
+        await syncCloudSchedule(targetEvent, scheduleId, input);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id === eventId
+          ? { ...event, schedule: event.schedule.filter((item) => item.id !== scheduleId) }
+          : event));
+        return '予定を追加できませんでした。通信状態を確認してください。';
+      }
+    },
+    updateScheduleItem: async (eventId, scheduleId, input) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || !isEventManager(targetEvent, user?.id, profile.name)) return '主催者・共同主催者のみ編集できます。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const previous = targetEvent.schedule.find((item) => item.id === scheduleId);
+      if (!previous) return '予定が見つかりません。';
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+        ...event,
+        schedule: event.schedule.map((item) => item.id === scheduleId ? { ...item, ...input } : item)
+          .sort((a, b) => `${a.day}${a.time}`.localeCompare(`${b.day}${b.time}`)),
+      }));
+      try {
+        await updateCloudSchedule(targetEvent, scheduleId, input);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, schedule: event.schedule.map((item) => item.id === scheduleId ? previous : item) }));
+        return '予定を更新できませんでした。通信状態を確認してください。';
+      }
+    },
+    deleteScheduleItem: async (eventId, scheduleId) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || !isEventManager(targetEvent, user?.id, profile.name)) return '主催者・共同主催者のみ削除できます。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const previous = targetEvent.schedule;
+      setEvents((current) => current.map((event) => event.id === eventId ? { ...event, schedule: event.schedule.filter((item) => item.id !== scheduleId) } : event));
+      try {
+        await deleteCloudSchedule(eventId, scheduleId);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id === eventId ? { ...event, schedule: previous } : event));
+        return '予定を削除できませんでした。通信状態を確認してください。';
+      }
     },
     addCollection: (eventId, input) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || isEventArchived(targetEvent)) throw new Error('archived_event');
       const baseAmount = input.participantIds.length ? Math.floor(input.totalAmount / input.participantIds.length) : 0;
       const remainder = input.totalAmount - baseAmount * input.participantIds.length;
       const collection: CollectionItem = {
@@ -755,6 +896,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     toggleCollectionPayment: async (eventId, collectionId, participantId) => {
       const targetEvent = events.find((event) => event.id === eventId);
       if (!isEventManager(targetEvent, user?.id, profile.name)) return '支払状態を変更できるのは主催者・共同主催者だけです。';
+      if (targetEvent && isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       const currentShare = targetEvent?.collections.find((collection) => collection.id === collectionId)?.shares.find((share) => share.participantId === participantId);
       if (!currentShare) return '対象の支払い情報が見つかりません。';
       const nextPaid = !(currentShare?.paid ?? false);
@@ -785,26 +927,28 @@ export function EventProvider({ children }: PropsWithChildren) {
     },
     addEvent: (input) => {
       const id = Crypto.randomUUID();
+      const normalizedDates = normalizeEventDateRange(input.startDate, input.endDate);
+      const safeInput = { ...input, ...normalizedDates };
       const event: EventItem = {
         id,
         title: input.title,
         category: 'EVENT',
         tagline: input.description || '',
         host: profile.name,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        dateLabel: formatDateLabel(input.startDate, input.endDate),
+        startDate: safeInput.startDate,
+        endDate: safeInput.endDate,
+        dateLabel: formatDateLabel(safeInput.startDate, safeInput.endDate),
         startTime: input.startTime,
         endTime: input.endTime,
         timeMode: input.timeMode,
-        timeLabel: formatTimeLabel(input.startTime, input.endTime, input.timeMode),
+        timeLabel: formatEventTimeLabel(input.startTime, input.endTime, input.timeMode),
         location: input.location || '場所未設定',
         address: input.address || input.location || '場所未設定',
         latitude: input.latitude,
         longitude: input.longitude,
         description: input.description || '',
-        coverColor: '#E2E9D5',
-        accentColor: '#52683F',
+        coverColor: '#242A26',
+        accentColor: '#A8442F',
         coverImageUri: input.coverImage?.uri,
         status: '予定',
         inviteCode: supabase ? '' : Math.random().toString(36).slice(2, 8).toUpperCase(),
@@ -816,7 +960,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         leaveRequests: [],
         dateCandidates: [],
         schedule: [
-          { id: 'start', day: input.startDate || '当日', time: input.startTime, title: 'イベント開始', type: 'activity' },
+          { id: Crypto.randomUUID(), day: safeInput.startDate, time: input.startTime, title: 'イベント開始', type: 'activity' },
         ],
         collections: input.initialFee > 0 ? [{
           id: Crypto.randomUUID(),
@@ -835,7 +979,10 @@ export function EventProvider({ children }: PropsWithChildren) {
       setEvents((current) => [event, ...current]);
       void createCloudEvent(event).then(async (inviteCode) => {
         if (inviteCode) setEvents((current) => current.map((item) => item.id === event.id ? { ...item, inviteCode } : item));
-        await Promise.all(event.collections.map((collection) => syncCloudCollection(event.id, collection)));
+        await Promise.all([
+          ...event.collections.map((collection) => syncCloudCollection(event.id, collection)),
+          ...event.schedule.map((schedule) => syncCloudSchedule(event, schedule.id, schedule)),
+        ]);
         if (input.coverImage) {
           const coverImagePath = await syncCloudEventCover(event.id, input.coverImage);
           setEvents((current) => current.map((item) => item.id === event.id ? { ...item, coverImagePath, coverImageUri: input.coverImage?.uri } : item));
@@ -843,7 +990,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }).catch(() => undefined);
       return event;
     },
-  }), [blockedUsers, consentHistory, dataStorage, events, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
+  }), [blockedUsers, consentHistory, dataStorage, events, isConfigured, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 }

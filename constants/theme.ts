@@ -1,17 +1,17 @@
 import { Platform } from 'react-native';
 
 export const palette = {
-  canvas: '#F5F3EC',
-  surface: '#FFFFFF',
-  ink: '#17231D',
-  muted: '#68736C',
-  line: '#E5E5DC',
-  primary: '#285943',
-  primarySoft: '#DDEBE3',
-  accent: '#F47B52',
-  accentSoft: '#FCE5DC',
-  yellow: '#F4C85B',
-  danger: '#C74B50',
+  canvas: '#F3F3F0',
+  surface: '#FCFCFA',
+  ink: '#151816',
+  muted: '#626762',
+  line: '#D7D8D3',
+  primary: '#173E33',
+  primarySoft: '#E8E9E6',
+  accent: '#A8442F',
+  accentSoft: '#EEEAE6',
+  yellow: '#B58A25',
+  danger: '#A63832',
 };
 
 export const typography = {
@@ -26,11 +26,11 @@ export const typography = {
 
 export const shadow = Platform.select({
   ios: {
-    shadowColor: '#1A2D24',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
-  android: { elevation: 3 },
+  android: { elevation: 0 },
   default: {},
 });

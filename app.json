@@ -7,7 +7,7 @@
     "icon": "./assets/images/brand-icon.png",
     "scheme": "tsudowa",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#F5F3EC",
+    "backgroundColor": "#F3F3F0",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#F5F3EC",
+        "backgroundColor": "#F3F3F0",
         "foregroundImage": "./assets/images/brand-icon-foreground.png",
         "monochromeImage": "./assets/images/brand-icon-monochrome.png"
       },
@@ -39,9 +39,9 @@
           "image": "./assets/images/brand-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#F5F3EC",
+          "backgroundColor": "#F3F3F0",
           "dark": {
-            "backgroundColor": "#F5F3EC"
+            "backgroundColor": "#F3F3F0"
           }
         }
       ],
@@ -75,7 +75,7 @@
       [
         "expo-notifications",
         {
-          "color": "#285943",
+          "color": "#173E33",
           "defaultChannel": "event-reminders"
         }
       ]

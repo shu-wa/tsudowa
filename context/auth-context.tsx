@@ -2,6 +2,7 @@ import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import * as ExpoLinking from 'expo-linking';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
 type AuthResult = { ok: true; needsEmailConfirmation?: boolean } | { ok: false; message: string };
 
@@ -49,7 +50,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
       try {
         const parsed = new URL(url);
         const route = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, '');
+        const currentWebOrigin = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null;
         const allowedProtocol = parsed.protocol === 'tsudowa:'
+          || (currentWebOrigin !== null && parsed.origin === currentWebOrigin)
           || (__DEV__ && (parsed.protocol === 'exp:' || (['http:', 'https:'].includes(parsed.protocol) && ['localhost', '127.0.0.1'].includes(parsed.hostname))));
         const allowedRoute = route.split('/').some((part) => part === 'onboarding' || part === 'reset-password');
         if (!allowedProtocol || !allowedRoute) return;

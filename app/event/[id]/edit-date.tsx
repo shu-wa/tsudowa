@@ -1,12 +1,14 @@
-import { formatJapaneseDateRange, NativeDateRangePicker, toDateString } from '@/components/native-date-picker';
-import { TimeRangePicker, formatTimeLabel } from '@/components/time-range-picker';
+import { DateRangeCalendar, formatJapaneseDateRange, toDateString } from '@/components/date-range-calendar';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
+import { TimeRangePicker } from '@/components/time-range-picker';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { formatEventTimeLabel } from '@/lib/time-values';
 import { EventTimeMode } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditEventDateScreen() {
@@ -30,9 +32,9 @@ export default function EditEventDateScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summary}><View style={styles.summaryIcon}><Ionicons name="calendar" size={22} color={palette.surface} /></View><View><Text style={styles.summaryDate}>{formatJapaneseDateRange(startDate, endDate)}</Text><Text style={styles.summaryTime}>{formatTimeLabel(startTime, endTime, timeMode)}</Text></View></View>
-        <Label title="開催日" hint="端末標準のカレンダーから開始日と終了日を選択" />
-        <NativeDateRangePicker startDate={startDate} endDate={endDate} onChange={(start, end) => { setStartDate(start); setEndDate(end); }} />
+        <View style={styles.summary}><View style={styles.summaryIcon}><Ionicons name="calendar" size={22} color={palette.surface} /></View><View><Text style={styles.summaryDate}>{formatJapaneseDateRange(startDate, endDate)}</Text><Text style={styles.summaryTime}>{formatEventTimeLabel(startTime, endTime, timeMode)}</Text></View></View>
+        <Label title="開催日" hint="カレンダーから開始日と終了日を選択" />
+        <DateRangeCalendar startDate={startDate} endDate={endDate} onChange={(start, end) => { setStartDate(start); setEndDate(end); }} />
         <Label title="開催時間" hint="開始時刻だけでも登録できます" />
         <TimeRangePicker startTime={startTime} endTime={endTime} timeMode={timeMode} onChange={(value) => { setStartTime(value.startTime); setEndTime(value.endTime); setTimeMode(value.timeMode); }} />
       </ScrollView>

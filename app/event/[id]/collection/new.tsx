@@ -1,6 +1,7 @@
 import { collectionCategories } from '@/constants/collections';
 import { KeyboardDismissBar } from '@/components/keyboard-dismiss-bar';
 import { NativeDateField } from '@/components/native-date-picker';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
 import { useAuth } from '@/context/auth-context';
@@ -9,7 +10,7 @@ import { CollectionCategory, SplitMethod } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NewCollectionScreen() {

@@ -1,8 +1,9 @@
 import { legalConfig } from '@/constants/legal';
 import { palette } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
 import { router, type Href } from 'expo-router';
-import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SupportScreen() {

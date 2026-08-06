@@ -1,10 +1,11 @@
 import { palette, shadow } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { useEvents } from '@/context/event-context';
 import { EventInvitePreview } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function JoinScreen() {
@@ -36,7 +37,7 @@ export default function JoinScreen() {
       if (result.pending) return Alert.alert('参加申請を送りました', '主催者が承認するとイベントが表示されます。', [{ text: '閉じる', onPress: () => router.replace('/') }]);
       if (!result.eventId) return Alert.alert('参加できませんでした', '通信状態を確認して、もう一度お試しください。');
       if (result.refreshPending) return Alert.alert('イベントに参加しました', '参加は完了しています。一覧の更新に時間がかかっているため、ホームで再読み込みしてください。', [{ text: 'ホームへ', onPress: () => router.replace('/') }]);
-      setTimeout(() => router.replace(`/event/${result.eventId}`), 0);
+      router.replace({ pathname: '/event/[id]', params: { id: result.eventId } });
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ export default function JoinScreen() {
             <Text style={styles.title}>このイベントに参加しますか？</Text>
             <Text style={styles.description}>表示された内容を確認して、参加する場合だけボタンを押してください。</Text>
             <View style={styles.previewCard}>
-              <View style={styles.previewRow}><Ionicons name="sparkles-outline" size={21} color={palette.primary} /><View style={styles.previewCopy}><Text style={styles.previewLabel}>イベント名</Text><Text style={styles.previewValue}>{preview.title}</Text></View></View>
+              <View style={styles.previewRow}><Ionicons name="calendar-outline" size={21} color={palette.primary} /><View style={styles.previewCopy}><Text style={styles.previewLabel}>イベント名</Text><Text style={styles.previewValue}>{preview.title}</Text></View></View>
               <View style={styles.separator} />
               <View style={styles.previewRow}><Ionicons name="calendar-outline" size={21} color={palette.primary} /><View style={styles.previewCopy}><Text style={styles.previewLabel}>日時</Text><Text style={styles.previewValue}>{preview.dateLabel}</Text><Text style={styles.previewTime}>{preview.timeLabel}</Text></View></View>
             </View>
@@ -83,17 +84,17 @@ export default function JoinScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 },
   content: { flexGrow: 1, paddingHorizontal: 24, justifyContent: 'center', paddingTop: 28, paddingBottom: 40 },
-  illustration: { alignItems: 'center', marginBottom: 24 },
-  ring: { width: 120, height: 120, borderRadius: 60, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  ticket: { width: 72, height: 72, borderRadius: 23, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-8deg' }] },
-  title: { textAlign: 'center', fontSize: 25, color: palette.ink, fontWeight: '800', marginBottom: 11 },
-  description: { textAlign: 'center', fontSize: 13, lineHeight: 21, color: palette.muted, marginBottom: 26 },
-  codeWrap: { minHeight: 64, borderRadius: 19, backgroundColor: palette.surface, borderWidth: 1.5, borderColor: palette.primary, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  illustration: { alignItems: 'flex-start', marginBottom: 24 },
+  ring: { width: 82, height: 82, borderRadius: 10, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
+  ticket: { width: 54, height: 54, borderRadius: 7, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center' },
+  title: { textAlign: 'left', fontSize: 25, color: palette.ink, fontWeight: '800', marginBottom: 11 },
+  description: { textAlign: 'left', fontSize: 13, lineHeight: 21, color: palette.muted, marginBottom: 26 },
+  codeWrap: { minHeight: 64, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.ink, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   codeInput: { flex: 1, fontSize: 18, color: palette.ink, textAlign: 'center', fontWeight: '800', letterSpacing: 2, paddingVertical: 16 },
-  primaryButton: { minHeight: 57, borderRadius: 18, backgroundColor: palette.primary, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center' },
+  primaryButton: { minHeight: 57, borderRadius: 8, backgroundColor: palette.primary, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center' },
   buttonDisabled: { opacity: 0.4 }, primaryText: { color: palette.surface, fontSize: 15, fontWeight: '800' },
   scan: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 19 }, scanText: { color: palette.primary, fontSize: 13, fontWeight: '700', marginLeft: 7 },
-  previewCard: { backgroundColor: palette.surface, borderRadius: 22, paddingHorizontal: 18, marginBottom: 16, ...shadow },
+  previewCard: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 18, marginBottom: 16, ...shadow },
   previewRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 18 }, previewCopy: { flex: 1, marginLeft: 13 },
   previewLabel: { color: palette.muted, fontSize: 13, fontWeight: '700', marginBottom: 4 }, previewValue: { color: palette.ink, fontSize: 16, lineHeight: 23, fontWeight: '800' }, previewTime: { color: palette.primary, fontSize: 13, fontWeight: '700', marginTop: 4 },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: palette.line },

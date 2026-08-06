@@ -1,5 +1,6 @@
 import { FormField } from '@/components/form-field';
 import { UserAvatar } from '@/components/user-avatar';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
 import { ChatImageInput } from '@/types/event';
@@ -7,10 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const avatarColors = ['#285943', '#E88A64', '#7A8EB0', '#A66F82', '#8B6B21'];
+const avatarColors = ['#173E33', '#843B2D', '#354A59', '#51435D', '#6B551D'];
 
 export default function ProfileEditScreen() {
   const { profile, updateProfile } = useEvents();

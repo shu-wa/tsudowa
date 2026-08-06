@@ -1,11 +1,12 @@
 import { palette } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { useAuth } from '@/context/auth-context';
 import { useEvents } from '@/context/event-context';
 import { AvailabilityChoice } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const choices: { value: AvailabilityChoice; mark: string; label: string; icon: ComponentProps<typeof Ionicons>['name'] }[] = [

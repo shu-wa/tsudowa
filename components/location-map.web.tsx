@@ -24,7 +24,7 @@ export function LocationMap({ latitude, longitude }: LocationMapProps) {
 const webMapStyle = { width: '100%', height: 304, border: 0 };
 
 const styles = StyleSheet.create({
-  map: { height: 350, backgroundColor: '#DDE8DE', overflow: 'hidden' },
+  map: { height: 350, backgroundColor: '#E2E3DF', overflow: 'hidden' },
   note: { height: 46, backgroundColor: palette.surface, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 7 },
   text: { flex: 1, color: palette.muted, fontSize: 11 },
   coords: { color: palette.primary, fontSize: 11, fontWeight: '700' },

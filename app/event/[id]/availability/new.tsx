@@ -1,19 +1,20 @@
 import { KeyboardDismissBar } from '@/components/keyboard-dismiss-bar';
-import { NativeDateField, toLocalDate } from '@/components/native-date-picker';
+import { NativeDateField, toLocalDate, toDateString } from '@/components/native-date-picker';
 import { NativeTimeField } from '@/components/native-time-field';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NewAvailabilityCandidateScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { findEvent, addDateCandidate } = useEvents();
   const event = findEvent(id);
-  const [date, setDate] = useState(event?.startDate ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(event?.startDate ?? toDateString(new Date()));
   const [startTime, setStartTime] = useState(event?.startTime ?? '09:00');
   const [note, setNote] = useState('');
   const [openField, setOpenField] = useState<'date' | 'time' | null>(null);
@@ -33,7 +34,7 @@ export default function NewAvailabilityCandidateScreen() {
     <ScrollView contentContainerStyle={styles.content} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <View style={styles.guide}><Ionicons name="people-outline" size={21} color={palette.primary} /><View style={styles.guideCopy}><Text style={styles.guideTitle}>参加者へ候補日を提示</Text><Text style={styles.guideText}>追加後、参加者は ○・△・× で都合を回答できます。</Text></View></View>
       <View style={styles.form}>
-        <NativeDateField label="候補日" value={date} onChange={setDate} open={openField === 'date'} onOpenChange={(open) => setOpenField(open ? 'date' : null)} minimumDate={toLocalDate(new Date().toISOString().slice(0, 10))} />
+        <NativeDateField label="候補日" value={date} onChange={setDate} open={openField === 'date'} onOpenChange={(open) => setOpenField(open ? 'date' : null)} minimumDate={toLocalDate(toDateString(new Date()))} />
         <NativeTimeField label="開始予定時刻" value={startTime} onChange={setStartTime} open={openField === 'time'} onOpenChange={(open) => setOpenField(open ? 'time' : null)} />
         <Text style={styles.label}>メモ（任意）</Text>
         <TextInput style={styles.input} value={note} onChangeText={setNote} placeholder="例：雨天の場合は翌週へ延期" placeholderTextColor="#9AA39E" maxLength={240} />

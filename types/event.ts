@@ -220,6 +220,7 @@ export type EventItem = {
   collections: CollectionItem[];
   messages: ChatMessage[];
   chatLastReadAt?: string;
+  archivedAt?: string;
 };
 
 export type NewEventInput = {

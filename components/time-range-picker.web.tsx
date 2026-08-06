@@ -10,9 +10,6 @@ type Props = {
   onChange: (value: { startTime: string; endTime?: string; timeMode: EventTimeMode }) => void;
 };
 
-export const formatTimeLabel = (startTime: string, endTime: string | undefined, mode: EventTimeMode) =>
-  mode === 'range' && endTime ? `${startTime}–${endTime}` : `${startTime} 開始`;
-
 export function TimeRangePicker({ startTime, endTime, timeMode, onChange }: Props) {
   const setMode = (mode: EventTimeMode) => onChange({ startTime, endTime: mode === 'range' ? endTime || '10:00' : undefined, timeMode: mode });
   return (
@@ -25,7 +22,6 @@ export function TimeRangePicker({ startTime, endTime, timeMode, onChange }: Prop
         <WebTimeInput label="開始" value={startTime} onChange={(value) => onChange({ startTime: value, endTime, timeMode })} />
         {timeMode === 'range' ? <WebTimeInput label="終了" value={endTime || '10:00'} onChange={(value) => onChange({ startTime, endTime: value, timeMode })} /> : null}
       </View>
-      <Text style={styles.guide}>ブラウザ標準の時刻選択を使用します</Text>
     </View>
   );
 }
@@ -62,14 +58,13 @@ const webInputStyle = {
 };
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.surface, borderRadius: 22, padding: 14 },
-  segment: { flexDirection: 'row', backgroundColor: palette.canvas, borderRadius: 14, padding: 4, marginBottom: 14 },
-  segmentButton: { flex: 1, minHeight: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  card: { backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.line, padding: 14 },
+  segment: { flexDirection: 'row', backgroundColor: palette.canvas, borderRadius: 6, padding: 3, marginBottom: 14 },
+  segmentButton: { flex: 1, minHeight: 38, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   segmentActive: { backgroundColor: palette.primary },
   segmentText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
   segmentTextActive: { color: palette.surface },
   times: { flexDirection: 'row', gap: 10 },
-  timeField: { flex: 1, minHeight: 70, borderRadius: 15, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 12, paddingTop: 7 },
+  timeField: { flex: 1, minHeight: 70, borderRadius: 8, borderWidth: 1, borderColor: palette.line, paddingHorizontal: 12, paddingTop: 7 },
   timeLabel: { color: palette.muted, fontSize: 11, fontWeight: '800' },
-  guide: { color: palette.muted, fontSize: 11, textAlign: 'center', marginTop: 10 },
 });

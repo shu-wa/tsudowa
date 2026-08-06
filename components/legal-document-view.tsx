@@ -1,7 +1,8 @@
 import { LegalDocumentKey, legalDocuments } from '@/constants/legal';
 import { palette } from '@/constants/theme';
+import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function LegalDocumentView({ document }: { document: LegalDocumentKey }) {

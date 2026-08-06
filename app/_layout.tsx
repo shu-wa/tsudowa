@@ -7,6 +7,7 @@ import { router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import '@/lib/web-alert-polyfill';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -45,9 +46,11 @@ export default function RootLayout() {
           <Stack.Screen name="event/[id]/collection/[collectionId]" options={{ title: '集金の詳細', headerBackTitle: '集金' }} />
           <Stack.Screen name="create" options={{ title: 'イベントを作成', presentation: 'modal' }} />
           <Stack.Screen name="join" options={{ title: 'イベントに参加', presentation: 'modal' }} />
+          <Stack.Screen name="past-events" options={{ title: '過去の予定', headerBackTitle: 'ホーム' }} />
           <Stack.Screen name="scan" options={{ title: 'QRコードを読み取る', presentation: 'modal' }} />
           <Stack.Screen name="profile-edit" options={{ title: 'プロフィール編集', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/schedule/new" options={{ title: '予定を追加', presentation: 'modal' }} />
+          <Stack.Screen name="event/[id]/schedule/index" options={{ title: 'タイムフロー編集', headerBackTitle: '詳細' }} />
         </Stack>
         <StatusBar style="dark" />
         </ThemeProvider>

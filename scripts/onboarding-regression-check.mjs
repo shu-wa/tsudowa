@@ -10,7 +10,8 @@ assert.match(cloudProfileSource, /acceptedDocuments\.has\('community'\)/, 'compl
 
 const eventContextSource = readFileSync(new URL('../context/event-context.tsx', import.meta.url), 'utf8');
 const hydrationStart = eventContextSource.indexOf('dataStorage.getItem(storageKey)');
-const hydrationEnd = eventContextSource.indexOf('}, [dataStorage, isConfigured, legacyStorageKey, storageKey', hydrationStart);
+const hydrationEnd = eventContextSource.indexOf('const persisted = isConfigured', hydrationStart);
+assert.ok(hydrationStart >= 0 && hydrationEnd > hydrationStart, 'the onboarding hydration effect must be discoverable');
 const hydrationSource = eventContextSource.slice(hydrationStart, hydrationEnd);
 assert.match(hydrationSource, /fetchCloudOnboardingState\(authenticatedUserId\)/, 'every authenticated hydration must recover onboarding from the account');
 assert.doesNotMatch(hydrationSource, /settings\.onboardingCompleted/, 'cloud recovery must not depend on the missing local completion flag');

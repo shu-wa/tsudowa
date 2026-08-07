@@ -3,6 +3,7 @@ import { useEvents } from '@/context/event-context';
 import { useAuth } from '@/context/auth-context';
 import { NativeDateField } from '@/components/native-date-picker';
 import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
+import { hasKnownOnboardingProfile } from '@/lib/onboarding-state';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -20,12 +21,13 @@ const isAtLeast16 = (dateOfBirth: string) => {
 };
 
 export default function OnboardingScreen() {
-  const { completeOnboarding } = useEvents();
+  const { completeOnboarding, profile, settings } = useEvents();
   const { user } = useAuth();
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const knownProfile = hasKnownOnboardingProfile(settings, profile);
+  const [step, setStep] = useState(knownProfile ? 2 : 0);
+  const [name, setName] = useState(profile.name === '新しいメンバー' ? '' : profile.name);
+  const [email, setEmail] = useState(user?.email ?? profile.email ?? '');
+  const [dateOfBirth, setDateOfBirth] = useState(settings.dateOfBirth ?? '');
   const [birthDateOpen, setBirthDateOpen] = useState(false);
   const [birthDateLimits] = useState(() => {
     const today = new Date();
@@ -75,7 +77,7 @@ export default function OnboardingScreen() {
             <ConsentRow checked={community} onPress={() => setCommunity(!community)} title="コミュニティガイドラインに同意する" required document="community" />
             <View style={styles.notice}><Ionicons name="checkmark-circle-outline" size={18} color={palette.primary} /><Text style={styles.noticeText}>広告SDKと任意の行動分析SDKは使用していません。</Text></View>
             <PrimaryButton label="登録してはじめる" onPress={finish} loading={submitting} />
-            <BackButton onPress={() => setStep(1)} />
+            {!knownProfile && <BackButton onPress={() => setStep(1)} />}
           </>}
         </ScrollView>
       </KeyboardAvoidingView>

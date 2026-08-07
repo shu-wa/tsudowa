@@ -7,6 +7,7 @@ import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/
 import { isEventArchived, isEventPast } from '@/lib/event-display';
 import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
 import { isEventManager } from '@/lib/event-permissions';
+import { hasStoredOnboardingEvidence, isKnownProfileName } from '@/lib/onboarding-state';
 import { formatEventTimeLabel } from '@/lib/time-values';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -195,6 +196,11 @@ export function EventProvider({ children }: PropsWithChildren) {
         if (legacyDefaultCity) nextProfile = { ...nextProfile, city: '' };
         let nextSettings = { ...defaultSettings, ...parsed.settings };
         let nextConsentHistory = parsed.consentHistory ?? [];
+        const hasLocalOnboardingEvidence = hasStoredOnboardingEvidence(
+          nextSettings,
+          nextProfile,
+          nextConsentHistory,
+        );
 
         // Completion is an account property, not a device property. Restore it
         // from the protected profile and consent rows after every new session.
@@ -202,9 +208,19 @@ export function EventProvider({ children }: PropsWithChildren) {
           try {
             const cloudState = await fetchCloudOnboardingState(authenticatedUserId);
             if (cloudState) {
-              nextProfile = { ...nextProfile, ...cloudState.profile, email: authenticatedUserEmail };
-              nextConsentHistory = cloudState.consentHistory;
-              nextSettings = { ...nextSettings, onboardingCompleted: cloudState.completed };
+              const cloudProfileHasName = isKnownProfileName(cloudState.profile.name);
+              nextProfile = {
+                ...nextProfile,
+                ...cloudState.profile,
+                name: cloudProfileHasName ? cloudState.profile.name : nextProfile.name,
+                initials: cloudProfileHasName ? cloudState.profile.initials : nextProfile.initials,
+                email: authenticatedUserEmail,
+              };
+              nextSettings = {
+                ...nextSettings,
+                dateOfBirth: cloudState.dateOfBirth || nextSettings.dateOfBirth,
+                onboardingCompleted: cloudState.completed || hasLocalOnboardingEvidence,
+              };
               if (cloudState.completed) {
                 const latestConsent = (document: ConsentRecord['document']) => (
                   [...cloudState.consentHistory].reverse().find((record) => record.document === document)
@@ -222,6 +238,43 @@ export function EventProvider({ children }: PropsWithChildren) {
                   acceptedPrivacyVersion: privacy?.version,
                   acceptedCommunityVersion: community?.version,
                 };
+                nextConsentHistory = cloudState.consentHistory;
+              } else if (hasLocalOnboardingEvidence && nextSettings.dateOfBirth) {
+                // Older releases kept the accepted legal versions in encrypted
+                // local storage before consent rows were recoverable per account.
+                // Preserve that valid registration and repair the account rows.
+                try {
+                  await syncOnboardingToCloud({
+                    name: nextProfile.name,
+                    email: authenticatedUserEmail ?? nextProfile.email ?? '',
+                    dateOfBirth: nextSettings.dateOfBirth,
+                  }, nextProfile);
+                  const repairedState = await fetchCloudOnboardingState(authenticatedUserId);
+                  if (repairedState?.completed) {
+                    const latestConsent = (document: ConsentRecord['document']) => (
+                      [...repairedState.consentHistory].reverse().find((record) => record.document === document)
+                    );
+                    const terms = latestConsent('terms');
+                    const privacy = latestConsent('privacy');
+                    const community = latestConsent('community');
+                    nextProfile = { ...nextProfile, ...repairedState.profile, email: authenticatedUserEmail };
+                    nextConsentHistory = repairedState.consentHistory;
+                    nextSettings = {
+                      ...nextSettings,
+                      onboardingCompleted: true,
+                      dateOfBirth: repairedState.dateOfBirth,
+                      termsAcceptedAt: terms?.recordedAt,
+                      privacyAcceptedAt: privacy?.recordedAt,
+                      communityAcceptedAt: community?.recordedAt,
+                      acceptedTermsVersion: terms?.version,
+                      acceptedPrivacyVersion: privacy?.version,
+                      acceptedCommunityVersion: community?.version,
+                    };
+                  }
+                } catch {
+                  // The encrypted evidence still keeps the user registered while
+                  // a temporary network failure prevents the cloud repair.
+                }
               }
             }
           } catch {

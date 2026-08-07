@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toSecureStoreKey } from '@/lib/secure-storage-key';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
@@ -15,8 +16,8 @@ type StorageAdapter = {
   removeItem: (key: string) => Promise<void>;
 };
 
-const manifestKey = (key: string) => `${key}.manifest`;
-const chunkKey = (key: string, generation: string, index: number) => `${key}.${generation}.${index}`;
+const manifestKey = (key: string) => `${toSecureStoreKey(key)}.manifest`;
+const chunkKey = (key: string, generation: string, index: number) => `${toSecureStoreKey(key)}.${generation}.${index}`;
 
 const readManifest = async (key: string): Promise<Manifest | null> => {
   const raw = await SecureStore.getItemAsync(manifestKey(key), secureOptions);

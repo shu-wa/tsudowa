@@ -4,7 +4,7 @@ import { getCollectionCategory } from '@/constants/collections';
 import { formatEventMonth, getEventDisplayStatus, isEventArchived } from '@/lib/event-display';
 import { useEvents } from '@/context/event-context';
 import { useAuth } from '@/context/auth-context';
-import { isEventManager } from '@/lib/event-permissions';
+import { isEventHost, isEventManager } from '@/lib/event-permissions';
 import { ScheduleItem } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
@@ -28,7 +28,8 @@ export default function EventDetailScreen() {
   const event = findEvent(id);
   const [tab, setTab] = useState<Tab>('概要');
   const archived = event ? isEventArchived(event) : false;
-  const canManageCollections = !archived && isEventManager(event, user?.id, profile.name);
+  const canManageEvent = !archived && isEventManager(event, user?.id, profile.name);
+  const canManageCollections = !archived && isEventHost(event, user?.id, profile.name);
 
   if (!event) {
     return <SafeAreaView style={styles.empty}><Ionicons name="calendar-outline" size={40} color={palette.muted} /><Text style={styles.emptyTitle}>イベントが見つかりません</Text><TouchableOpacity onPress={() => router.replace('/')}><Text style={styles.emptyLink}>ホームへ戻る</Text></TouchableOpacity></SafeAreaView>;
@@ -110,7 +111,7 @@ export default function EventDetailScreen() {
           {event.coverImageUri ? <View style={styles.heroShade} /> : null}
           <View style={styles.category}><Text style={styles.categoryText}>{event.category}</Text></View>
           {!event.coverImageUri ? <View style={styles.heroDate}><Text style={styles.heroMonth}>{formatEventMonth(event.startDate)}</Text><Text style={styles.heroDay}>{event.startDate.slice(-2)}</Text></View> : null}
-          {canManageCollections ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="イベント写真を変更" style={styles.coverEdit} onPress={changeCover}><Ionicons name="camera" size={19} color={palette.surface} /><Text style={styles.coverEditText}>写真を変更</Text></TouchableOpacity> : null}
+          {canManageEvent ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="イベント写真を変更" style={styles.coverEdit} onPress={changeCover}><Ionicons name="camera" size={19} color={palette.surface} /><Text style={styles.coverEditText}>写真を変更</Text></TouchableOpacity> : null}
         </View>
         <View style={styles.titleBlock}>
           <View style={styles.statusRow}><View style={styles.statusDot} /><Text style={styles.statusText}>{displayStatus}</Text><Text style={styles.host}> · {event.host}さんが主催</Text></View>
@@ -137,7 +138,7 @@ export default function EventDetailScreen() {
             {!archived ? <><InfoRow icon="calendar-number-outline" label="候補日の投票" value={(event.dateCandidates?.length ?? 0) > 0 ? `${event.dateCandidates!.length}件の候補日` : '候補日を追加して調整'} subvalue={(event.dateCandidates?.length ?? 0) > 0 ? '○・△・× で参加可否を回答' : '参加者全員の日程をまとめて確認'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/availability`)} /><View style={styles.separator} /></> : null}
             <InfoRow icon="location-outline" label="場所" value={event.location} subvalue={event.address} color={event.accentColor} onPress={archived ? undefined : () => router.push(`/event/${event.id}/edit-location`)} />
             <View style={styles.separator} />
-            <InfoRow icon="people-outline" label="参加者" value={`${event.participants.length}人が参加`} subvalue={(event.leaveRequests?.length ?? 0) > 0 && canManageCollections ? `脱退承認待ち ${event.leaveRequests!.length}人` : (event.joinRequests?.length ?? 0) > 0 ? `承認待ち ${event.joinRequests!.length}人` : '参加者一覧を表示'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/participants`)} />
+            <InfoRow icon="people-outline" label="参加者" value={`${event.participants.length}人が参加`} subvalue={(event.leaveRequests?.length ?? 0) > 0 && canManageEvent ? `脱退承認待ち ${event.leaveRequests!.length}人` : (event.joinRequests?.length ?? 0) > 0 ? `承認待ち ${event.joinRequests!.length}人` : '参加者一覧を表示'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/participants`)} />
           </View>
           <SectionTitle title="イベントについて" />
           <View style={styles.textCard}><Text style={styles.description}>{event.description || '説明はありません'}</Text></View>
@@ -155,7 +156,7 @@ export default function EventDetailScreen() {
               return <View key={item.id}>{showDay && <Text style={styles.dayLabel}>{item.day}</Text>}<View style={styles.scheduleRow}><View style={styles.timeColumn}><Text style={styles.time}>{item.time}</Text></View><View style={styles.timelineLine}>{index < event.schedule.length - 1 && <View style={styles.line} />}<View style={[styles.timelineDot, { backgroundColor: event.accentColor }]}><Ionicons name={scheduleIcon[item.type]} size={13} color={palette.surface} /></View></View><View style={styles.scheduleCopy}><Text style={styles.scheduleTitle}>{item.title}</Text>{item.note && <Text style={styles.scheduleNote}>{item.note}</Text>}</View></View></View>;
             })}
           </View>
-          {canManageCollections ? <TouchableOpacity style={styles.outlineButton} onPress={() => router.push(`/event/${event.id}/schedule`)}><Ionicons name="create-outline" size={19} color={palette.primary} /><Text style={styles.outlineText}>タイムフローを編集する</Text></TouchableOpacity> : null}
+          {canManageEvent ? <TouchableOpacity style={styles.outlineButton} onPress={() => router.push(`/event/${event.id}/schedule`)}><Ionicons name="create-outline" size={19} color={palette.primary} /><Text style={styles.outlineText}>タイムフローを編集する</Text></TouchableOpacity> : null}
         </>}
 
         {tab === '集金' && <>
@@ -185,7 +186,7 @@ export default function EventDetailScreen() {
           </View>
           {canManageCollections
             ? <TouchableOpacity style={styles.addCollectionButton} onPress={() => router.push(`/event/${event.id}/collection/new`)}><View style={styles.addCollectionIcon}><Ionicons name="add" size={21} color={palette.surface} /></View><View style={styles.addCollectionCopy}><Text style={styles.addCollectionTitle}>集金項目を追加</Text><Text style={styles.addCollectionText}>参加費、食事代、立替えなど</Text></View><Ionicons name="arrow-forward" size={19} color={palette.surface} /></TouchableOpacity>
-            : <View style={styles.collectionReadonly}><Ionicons name="lock-closed-outline" size={17} color={palette.muted} /><Text style={styles.collectionReadonlyText}>集金の追加と支払状態の変更は主催者・共同主催者が行います</Text></View>}
+            : <View style={styles.collectionReadonly}><Ionicons name="lock-closed-outline" size={17} color={palette.muted} /><Text style={styles.collectionReadonlyText}>集金の追加・編集と支払状態の変更は主催者が行います</Text></View>}
         </>}
         <View style={styles.eventActions}>
           {!isHost && hostParticipant ? <TouchableOpacity style={styles.reportEventButton} onPress={() => router.push({ pathname: '/safety/report', params: { eventId: event.id, targetUserId: hostParticipant.id, targetName: hostParticipant.name, targetContentLabel: `イベント「${event.title}」` } })}><Ionicons name="flag-outline" size={18} color={palette.muted} /><Text style={styles.reportEventText}>このイベントの内容を通報</Text></TouchableOpacity> : null}

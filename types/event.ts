@@ -249,6 +249,8 @@ export type NewCollectionInput = {
   note?: string;
   participantIds: string[];
   customAmounts?: Record<string, number>;
+  autoAssignNewMembers?: boolean;
+  defaultShareAmount?: number;
 };
 
 export type NewScheduleInput = Omit<ScheduleItem, 'id'>;

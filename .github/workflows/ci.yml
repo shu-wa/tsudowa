@@ -42,7 +42,7 @@ jobs:
         run: pnpm lint
 
       - name: Check regressions
-        run: pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect
+        run: pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:collections
 
       - name: Check Expo dependencies
         run: pnpm exec expo-doctor

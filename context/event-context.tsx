@@ -2,11 +2,12 @@ import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
 import { fetchCloudOnboardingState, fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
-import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudEvent, deleteCloudSchedule, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, updateCloudSchedule } from '@/lib/cloud-events';
+import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudCollection, deleteCloudEvent, deleteCloudSchedule, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, updateCloudCollection, updateCloudSchedule } from '@/lib/cloud-events';
 import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/date-values';
+import { buildCollectionShares, collectionSharesTotal } from '@/lib/collection-values';
 import { isEventArchived, isEventPast } from '@/lib/event-display';
 import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
-import { isEventManager } from '@/lib/event-permissions';
+import { isEventHost, isEventManager } from '@/lib/event-permissions';
 import { hasStoredOnboardingEvidence, isKnownProfileName } from '@/lib/onboarding-state';
 import { formatEventTimeLabel } from '@/lib/time-values';
 import { useAuth } from '@/context/auth-context';
@@ -66,7 +67,9 @@ type EventContextValue = {
   blockedUsers: BlockedUser[];
   isHydrated: boolean;
   addEvent: (input: NewEventInput) => EventItem;
-  addCollection: (eventId: string, input: NewCollectionInput) => CollectionItem;
+  addCollection: (eventId: string, input: NewCollectionInput) => Promise<string | null>;
+  updateCollection: (eventId: string, collectionId: string, input: NewCollectionInput) => Promise<string | null>;
+  deleteCollection: (eventId: string, collectionId: string) => Promise<string | null>;
   addScheduleItem: (eventId: string, input: NewScheduleInput) => Promise<string | null>;
   updateScheduleItem: (eventId: string, scheduleId: string, input: NewScheduleInput) => Promise<string | null>;
   deleteScheduleItem: (eventId: string, scheduleId: string) => Promise<string | null>;
@@ -970,37 +973,92 @@ export function EventProvider({ children }: PropsWithChildren) {
         return '予定を削除できませんでした。通信状態を確認してください。';
       }
     },
-    addCollection: (eventId, input) => {
+    addCollection: async (eventId, input) => {
       const targetEvent = events.find((event) => event.id === eventId);
-      if (!targetEvent || isEventArchived(targetEvent)) throw new Error('archived_event');
-      const baseAmount = input.participantIds.length ? Math.floor(input.totalAmount / input.participantIds.length) : 0;
-      const remainder = input.totalAmount - baseAmount * input.participantIds.length;
+      if (!targetEvent || !isEventHost(targetEvent, user?.id, profile.name)) return '集金を追加できるのは主催者だけです。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const shares = buildCollectionShares(input);
       const collection: CollectionItem = {
         id: Crypto.randomUUID(),
         title: input.title,
         category: input.category,
         paidByParticipantId: input.paidByParticipantId,
-        totalAmount: input.totalAmount,
+        totalAmount: collectionSharesTotal(shares),
         splitMethod: input.splitMethod,
+        autoAssignNewMembers: input.autoAssignNewMembers ?? false,
+        defaultShareAmount: input.defaultShareAmount,
         dueDate: input.dueDate,
         note: input.note,
-        shares: input.participantIds.map((participantId, index) => ({
-          participantId,
-          amount: input.splitMethod === 'custom'
-            ? input.customAmounts?.[participantId] ?? 0
-            : baseAmount + (index === 0 ? remainder : 0),
-          paid: false,
-        })),
+        shares,
       };
       setEvents((current) => current.map((event) => event.id === eventId
         ? { ...event, collections: [...event.collections, collection] }
         : event));
-      void syncCloudCollection(eventId, collection);
-      return collection;
+      try {
+        await syncCloudCollection(eventId, collection);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id === eventId
+          ? { ...event, collections: event.collections.filter((item) => item.id !== collection.id) }
+          : event));
+        return '集金項目を追加できませんでした。通信状態を確認してください。';
+      }
+    },
+    updateCollection: async (eventId, collectionId, input) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || !isEventHost(targetEvent, user?.id, profile.name)) return '集金を編集できるのは主催者だけです。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const previous = targetEvent.collections.find((collection) => collection.id === collectionId);
+      if (!previous) return '集金項目が見つかりません。';
+      const shares = buildCollectionShares(input, previous.shares);
+      const nextCollection: CollectionItem = {
+        ...previous,
+        title: input.title,
+        category: input.category,
+        paidByParticipantId: input.paidByParticipantId,
+        totalAmount: collectionSharesTotal(shares),
+        splitMethod: input.splitMethod,
+        autoAssignNewMembers: input.autoAssignNewMembers ?? false,
+        defaultShareAmount: input.defaultShareAmount,
+        dueDate: input.dueDate,
+        note: input.note,
+        shares,
+      };
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+        ...event,
+        collections: event.collections.map((collection) => collection.id === collectionId ? nextCollection : collection),
+      }));
+      try {
+        await updateCloudCollection(eventId, nextCollection);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          collections: event.collections.map((collection) => collection.id === collectionId ? previous : collection),
+        }));
+        return '集金項目を更新できませんでした。通信状態と権限を確認してください。';
+      }
+    },
+    deleteCollection: async (eventId, collectionId) => {
+      const targetEvent = events.find((event) => event.id === eventId);
+      if (!targetEvent || !isEventHost(targetEvent, user?.id, profile.name)) return '集金を削除できるのは主催者だけです。';
+      if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      const previousCollections = targetEvent.collections;
+      if (!previousCollections.some((collection) => collection.id === collectionId)) return '集金項目が見つかりません。';
+      setEvents((current) => current.map((event) => event.id === eventId
+        ? { ...event, collections: event.collections.filter((collection) => collection.id !== collectionId) }
+        : event));
+      try {
+        await deleteCloudCollection(eventId, collectionId);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id === eventId ? { ...event, collections: previousCollections } : event));
+        return '集金項目を削除できませんでした。通信状態と権限を確認してください。';
+      }
     },
     toggleCollectionPayment: async (eventId, collectionId, participantId) => {
       const targetEvent = events.find((event) => event.id === eventId);
-      if (!isEventManager(targetEvent, user?.id, profile.name)) return '支払状態を変更できるのは主催者・共同主催者だけです。';
+      if (!isEventHost(targetEvent, user?.id, profile.name)) return '支払状態を変更できるのは主催者だけです。';
       if (targetEvent && isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
       const currentShare = targetEvent?.collections.find((collection) => collection.id === collectionId)?.shares.find((share) => share.participantId === participantId);
       if (!currentShare) return '対象の支払い情報が見つかりません。';

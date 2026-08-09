@@ -378,6 +378,38 @@ export async function syncCloudCollection(eventId: string, collection: Collectio
   }
 }
 
+export async function updateCloudCollection(eventId: string, collection: CollectionItem) {
+  if (!supabase || !isCloudId(eventId) || !isCloudId(collection.id)) return;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw new Error('not_authenticated');
+  const shares = collection.shares.map((share) => ({
+    user_id: isCloudId(share.participantId) ? share.participantId : share.participantId === 'me' ? data.user!.id : null,
+    amount: share.amount,
+  }));
+  if (shares.some((share) => !share.user_id)) throw new Error('invalid_collection_member');
+  const payerId = isCloudId(collection.paidByParticipantId) ? collection.paidByParticipantId : collection.paidByParticipantId === 'me' ? data.user.id : null;
+  if (!payerId) throw new Error('invalid_collection_payer');
+  const { error } = await supabase.rpc('update_collection_details', {
+    target_collection_id: collection.id,
+    new_title: collection.title,
+    new_category: collection.category,
+    new_paid_by_user_id: payerId,
+    new_split_method: collection.splitMethod,
+    new_due_date: collection.dueDate ?? null,
+    new_note: collection.note ?? null,
+    new_auto_assign_new_members: collection.autoAssignNewMembers ?? false,
+    new_default_share_amount: collection.defaultShareAmount ?? null,
+    new_shares: shares,
+  });
+  if (error) throw error;
+}
+
+export async function deleteCloudCollection(eventId: string, collectionId: string) {
+  if (!supabase || !isCloudId(eventId) || !isCloudId(collectionId)) return;
+  const { error } = await supabase.from('collections').delete().eq('id', collectionId).eq('event_id', eventId);
+  if (error) throw error;
+}
+
 export async function syncCloudPayment(collectionId: string, participantId: string, paid: boolean) {
   if (!supabase || !isCloudId(collectionId) || !isCloudId(participantId)) return;
   const { error } = await supabase.rpc('set_collection_share_paid', { target_collection_id: collectionId, target_user_id: participantId, is_paid: paid });

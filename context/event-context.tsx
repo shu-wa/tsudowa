@@ -41,10 +41,10 @@ const LEGACY_STORAGE_KEY = ['@do', 'eventer/app-data-v2'].join('-');
 const LEGACY_SAMPLE_EVENT_IDS = new Set(['hakone-retreat', 'summer-bbq', 'design-meetup']);
 
 const defaultProfile: UserProfile = {
-  name: 'Test',
-  handle: '@tamasyu0202',
+  name: '',
+  handle: '',
   city: '',
-  initials: 'TE',
+  initials: '',
   avatarColor: '#173E33',
 };
 

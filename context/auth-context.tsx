@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { Session, User } from '@supabase/supabase-js';
+import { NATIVE_ONBOARDING_REDIRECT, NATIVE_RESET_PASSWORD_REDIRECT, parseAuthCallbackUrl } from '@/lib/auth-redirect';
+import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as ExpoLinking from 'expo-linking';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
@@ -36,33 +37,48 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!supabase) { setIsLoading(false); return; }
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (active) setSession(data.session);
-    }).finally(() => active && setIsLoading(false));
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-    return () => { active = false; subscription.subscription.unsubscribe(); };
-  }, []);
-
-  useEffect(() => {
-    if (!supabase) return;
     const client = supabase;
     const applyAuthUrl = async (url: string) => {
       try {
-        const parsed = new URL(url);
-        const route = `${parsed.hostname}${parsed.pathname}`.replace(/^\/+/, '');
         const currentWebOrigin = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : null;
-        const allowedProtocol = parsed.protocol === 'tsudowa:'
-          || (currentWebOrigin !== null && parsed.origin === currentWebOrigin)
-          || (__DEV__ && (parsed.protocol === 'exp:' || (['http:', 'https:'].includes(parsed.protocol) && ['localhost', '127.0.0.1'].includes(parsed.hostname))));
-        const allowedRoute = route.split('/').some((part) => part === 'onboarding' || part === 'reset-password');
-        if (!allowedProtocol || !allowedRoute) return;
-        const code = parsed.searchParams.get('code');
-        if (code && code.length <= 512) await client.auth.exchangeCodeForSession(code);
+        const callback = parseAuthCallbackUrl(url, { webOrigin: currentWebOrigin, allowDevelopment: __DEV__ });
+        if (!callback || callback.errorDescription) return;
+
+        if (callback.code) {
+          await client.auth.exchangeCodeForSession(callback.code);
+          return;
+        }
+        if (callback.tokenHash && callback.type) {
+          const supportedTypes = new Set<EmailOtpType>(['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email']);
+          if (supportedTypes.has(callback.type as EmailOtpType)) {
+            await client.auth.verifyOtp({ token_hash: callback.tokenHash, type: callback.type as EmailOtpType });
+          }
+          return;
+        }
+        if (callback.accessToken && callback.refreshToken) {
+          await client.auth.setSession({ access_token: callback.accessToken, refresh_token: callback.refreshToken });
+        }
       } catch { /* 不正なURLは無視し、認証画面に留める */ }
     };
-    ExpoLinking.getInitialURL().then((url) => { if (url) void applyAuthUrl(url); });
-    const subscription = ExpoLinking.addEventListener('url', ({ url }) => { void applyAuthUrl(url); });
-    return () => subscription.remove();
+    const { data: authSubscription } = client.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) setSession(nextSession);
+    });
+    const linkSubscription = ExpoLinking.addEventListener('url', ({ url }) => { void applyAuthUrl(url); });
+    void (async () => {
+      try {
+        const [{ data }, initialUrl] = await Promise.all([client.auth.getSession(), ExpoLinking.getInitialURL()]);
+        if (!active) return;
+        setSession(data.session);
+        if (initialUrl) await applyAuthUrl(initialUrl);
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      authSubscription.subscription.unsubscribe();
+      linkSubscription.remove();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -77,13 +93,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     signUp: async (email, password) => {
       if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
-      const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { emailRedirectTo: ExpoLinking.createURL('/onboarding') } });
+      const emailRedirectTo = Platform.OS === 'web' ? ExpoLinking.createURL('/onboarding') : NATIVE_ONBOARDING_REDIRECT;
+      const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { emailRedirectTo } });
       if (error) return { ok: false, message: authErrorMessage(error.message) };
       return { ok: true, needsEmailConfirmation: !data.session };
     },
     sendPasswordReset: async (email) => {
       if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: ExpoLinking.createURL('/reset-password') });
+      const redirectTo = Platform.OS === 'web' ? ExpoLinking.createURL('/reset-password') : NATIVE_RESET_PASSWORD_REDIRECT;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
       return error ? { ok: false, message: authErrorMessage(error.message) } : { ok: true };
     },
     updatePassword: async (password) => {

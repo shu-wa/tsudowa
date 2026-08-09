@@ -24,7 +24,7 @@ export default function AuthScreen() {
     const result = mode === 'signup' ? await signUp(email, password) : await signIn(email, password);
     setLoading(false);
     if (!result.ok) return Alert.alert(mode === 'signup' ? '登録できませんでした' : 'ログインできませんでした', result.message);
-    if (result.needsEmailConfirmation) Alert.alert('確認メールを送りました', 'メール内のリンクを開いた後、この画面からログインしてください。', [{ text: 'ログインへ', onPress: () => setMode('login') }]);
+    if (result.needsEmailConfirmation) Alert.alert('確認メールを送りました', 'メール内の確認リンクを開くとTSUDOWAに戻り、そのまま登録の続きを行えます。', [{ text: 'OK' }]);
   };
 
   const resetPassword = async () => {

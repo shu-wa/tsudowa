@@ -22,9 +22,10 @@
     "check:times": "node scripts/time-regression-check.mjs",
     "check:onboarding": "node scripts/onboarding-regression-check.mjs",
     "check:storage": "node scripts/storage-regression-check.mjs",
+    "check:auth-redirect": "node scripts/auth-redirect-regression-check.mjs",
     "export:web": "expo export --platform web",
     "release:check": "node --env-file=.env ./scripts/release-check.js",
-    "release:verify": "pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
+    "release:verify": "pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -6,6 +6,7 @@ export type Participant = {
   avatarColor: string;
   avatarUri?: string;
   attendance: string;
+  chatReadAt?: string;
 };
 
 export type AttendanceChoice = '参加' | '未定' | '不参加';
@@ -77,6 +78,14 @@ export type CollectionItem = {
   shares: CollectionShare[];
 };
 
+export const CHAT_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+export type ChatReactionEmoji = typeof CHAT_REACTION_EMOJIS[number];
+
+export type ChatReaction = {
+  emoji: ChatReactionEmoji;
+  userIds: string[];
+};
+
 export type ChatMessage = {
   id: string;
   authorId?: string;
@@ -92,6 +101,12 @@ export type ChatMessage = {
   imageMimeType?: string;
   imageWidth?: number;
   imageHeight?: number;
+  replyToId?: string;
+  editedAt?: string;
+  deletedAt?: string;
+  pinnedAt?: string;
+  pinnedBy?: string;
+  reactions?: ChatReaction[];
 };
 
 export type ChatImageInput = {
@@ -125,6 +140,7 @@ export type UserProfile = {
 
 export type AppSettings = {
   notificationsEnabled: boolean;
+  notificationPreferences?: NotificationPreferences;
   onboardingCompleted: boolean;
   dateOfBirth?: string;
   termsAcceptedAt?: string;
@@ -166,8 +182,24 @@ export type BlockedUser = {
 
 export type OnboardingInput = {
   name: string;
+  handle: string;
   email: string;
   dateOfBirth: string;
+};
+
+export type NotificationPreferences = {
+  eventReminders: boolean;
+  collectionReminders: boolean;
+  chatMessages: boolean;
+  mentionsAndReplies: boolean;
+  eventUpdates: boolean;
+  membershipUpdates: boolean;
+  collectionUpdates: boolean;
+  groupUpdates: boolean;
+  announcements: boolean;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
 };
 
 export type EventTimeMode = 'start' | 'range';
@@ -210,6 +242,9 @@ export type EventItem = {
   coverImageUri?: string;
   coverImagePath?: string;
   status: '開催中' | '予定' | '終了';
+  dateStatus?: 'undecided' | 'scheduled';
+  groupId?: string;
+  notificationsMuted?: boolean;
   inviteCode: string;
   capacity: number;
   participants: Participant[];
@@ -221,6 +256,22 @@ export type EventItem = {
   messages: ChatMessage[];
   chatLastReadAt?: string;
   archivedAt?: string;
+};
+
+export type EventGroup = {
+  id: string;
+  ownerId: string;
+  name: string;
+  coverColor: string;
+  members: Participant[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GroupCreationResult = {
+  groupId?: string;
+  eventId?: string;
+  error?: string;
 };
 
 export type NewEventInput = {

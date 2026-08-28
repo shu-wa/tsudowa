@@ -78,6 +78,12 @@ Deno.serve(async (request) => {
     if (ownedEventDeleteError) return failure('owned_events_delete_failed');
   }
 
+  const { error: ownedGroupsDeleteError } = await admin
+    .from('event_groups')
+    .delete()
+    .eq('owner_id', userId);
+  if (ownedGroupsDeleteError) return failure('owned_groups_delete_failed');
+
   // 他のイベント内で本人が作成・立替した項目は、restrict外部キーを解消しつつ削除します。
   const cleanupResults = await Promise.all([
     admin.from('schedule_items').delete().eq('created_by', userId),

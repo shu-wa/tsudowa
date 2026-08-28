@@ -42,10 +42,32 @@ jobs:
         run: pnpm lint
 
       - name: Check regressions
-        run: pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:collections
+        run: pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:auth-flow && pnpm check:profile-handle && pnpm check:collections && pnpm check:chat && pnpm check:groups-notifications
 
       - name: Check Expo dependencies
         run: pnpm exec expo-doctor
 
       - name: Audit production dependencies
         run: pnpm audit --prod
+
+  database-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.109.1
+          github-token: ${{ github.token }}
+
+      - name: Apply migrations to an isolated database
+        run: supabase db start
+
+      - name: Run database tests
+        run: supabase test db supabase/tests
+
+      - name: Lint database schemas
+        run: supabase db lint --local --level warning

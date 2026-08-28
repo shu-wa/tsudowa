@@ -8,7 +8,7 @@ import { isEventHost, isEventManager } from '@/lib/event-permissions';
 import { ScheduleItem } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Calendar from 'expo-calendar';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Href, router, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
 import { Alert, Platform, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ const scheduleIcon: Record<ScheduleItem['type'], ComponentProps<typeof Ionicons>
 
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { findEvent, createInviteCode, getUnreadMessageCount, profile, updateEventCover, deleteEvent, requestEventLeave, cancelEventLeave } = useEvents();
+  const { findEvent, findGroup, createInviteCode, getUnreadMessageCount, profile, updateEventCover, deleteEvent, requestEventLeave, cancelEventLeave } = useEvents();
   const { user } = useAuth();
   const event = findEvent(id);
   const [tab, setTab] = useState<Tab>('概要');
@@ -41,6 +41,9 @@ export default function EventDetailScreen() {
     await Share.share({ message: `${event.title}に招待されました。\n${event.dateLabel} / ${event.location}\n参加コード：${code}\ntsudowa://join?code=${code}` });
   };
   const addToCalendar = async () => {
+    if (event.dateStatus === 'undecided') {
+      return Alert.alert('日時を設定してください', '日時を決めると端末カレンダーへ追加できます。');
+    }
     if (Platform.OS === 'web') return Alert.alert('スマートフォンで利用できます', 'iOSまたはAndroidで端末カレンダーへ追加できます。');
     const startDate = new Date(`${event.startDate}T${event.startTime || '09:00'}:00`);
     const endDate = new Date(`${event.endDate || event.startDate}T${event.timeMode === 'range' && event.endTime ? event.endTime : event.startTime || '09:00'}:00`);
@@ -55,6 +58,7 @@ export default function EventDetailScreen() {
   const paid = event.collections.reduce((sum, collection) => sum + collection.shares.filter((share) => share.paid).reduce((shareSum, share) => shareSum + share.amount, 0), 0);
   const unreadCount = getUnreadMessageCount(event.id);
   const displayStatus = getEventDisplayStatus(event);
+  const eventGroup = event.groupId ? findGroup(event.groupId) : undefined;
   const myParticipant = event.participants.find((participant) => participant.id === user?.id || (!user && participant.name === profile.name));
   const hostParticipant = event.participants.find((participant) => participant.role === '主催者');
   const isHost = myParticipant?.role === '主催者';
@@ -110,7 +114,11 @@ export default function EventDetailScreen() {
           {event.coverImageUri ? <Image source={{ uri: event.coverImageUri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} /> : null}
           {event.coverImageUri ? <View style={styles.heroShade} /> : null}
           <View style={styles.category}><Text style={styles.categoryText}>{event.category}</Text></View>
-          {!event.coverImageUri ? <View style={styles.heroDate}><Text style={styles.heroMonth}>{formatEventMonth(event.startDate)}</Text><Text style={styles.heroDay}>{event.startDate.slice(-2)}</Text></View> : null}
+          {!event.coverImageUri ? <View style={styles.heroDate}>
+            {event.dateStatus === 'undecided'
+              ? <Text style={styles.heroUndecided}>日時未定</Text>
+              : <><Text style={styles.heroMonth}>{formatEventMonth(event.startDate)}</Text><Text style={styles.heroDay}>{event.startDate.slice(-2)}</Text></>}
+          </View> : null}
           {canManageEvent ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="イベント写真を変更" style={styles.coverEdit} onPress={changeCover}><Ionicons name="camera" size={19} color={palette.surface} /><Text style={styles.coverEditText}>写真を変更</Text></TouchableOpacity> : null}
         </View>
         <View style={styles.titleBlock}>
@@ -133,6 +141,7 @@ export default function EventDetailScreen() {
 
         {tab === '概要' && <>
           <View style={styles.infoCard}>
+            {eventGroup ? <><InfoRow icon="people-circle-outline" label="グループ" value={eventGroup.name} subvalue="これまでとこれからのイベントを見る" color={event.accentColor} onPress={() => router.push(`/group/${eventGroup.id}` as Href)} /><View style={styles.separator} /></> : null}
             <InfoRow icon="calendar-outline" label="日時" value={event.dateLabel} subvalue={event.timeLabel} color={event.accentColor} onPress={archived ? undefined : () => router.push(`/event/${event.id}/edit-date`)} />
             <View style={styles.separator} />
             {!archived ? <><InfoRow icon="calendar-number-outline" label="候補日の投票" value={(event.dateCandidates?.length ?? 0) > 0 ? `${event.dateCandidates!.length}件の候補日` : '候補日を追加して調整'} subvalue={(event.dateCandidates?.length ?? 0) > 0 ? '○・△・× で参加可否を回答' : '参加者全員の日程をまとめて確認'} color={event.accentColor} onPress={() => router.push(`/event/${event.id}/availability`)} /><View style={styles.separator} /></> : null}
@@ -156,7 +165,8 @@ export default function EventDetailScreen() {
               return <View key={item.id}>{showDay && <Text style={styles.dayLabel}>{item.day}</Text>}<View style={styles.scheduleRow}><View style={styles.timeColumn}><Text style={styles.time}>{item.time}</Text></View><View style={styles.timelineLine}>{index < event.schedule.length - 1 && <View style={styles.line} />}<View style={[styles.timelineDot, { backgroundColor: event.accentColor }]}><Ionicons name={scheduleIcon[item.type]} size={13} color={palette.surface} /></View></View><View style={styles.scheduleCopy}><Text style={styles.scheduleTitle}>{item.title}</Text>{item.note && <Text style={styles.scheduleNote}>{item.note}</Text>}</View></View></View>;
             })}
           </View>
-          {canManageEvent ? <TouchableOpacity style={styles.outlineButton} onPress={() => router.push(`/event/${event.id}/schedule`)}><Ionicons name="create-outline" size={19} color={palette.primary} /><Text style={styles.outlineText}>タイムフローを編集する</Text></TouchableOpacity> : null}
+          {canManageEvent && event.dateStatus !== 'undecided' ? <TouchableOpacity style={styles.outlineButton} onPress={() => router.push(`/event/${event.id}/schedule`)}><Ionicons name="create-outline" size={19} color={palette.primary} /><Text style={styles.outlineText}>タイムフローを編集する</Text></TouchableOpacity> : null}
+          {canManageEvent && event.dateStatus === 'undecided' ? <View style={styles.collectionReadonly}><Ionicons name="calendar-outline" size={18} color={palette.primary} /><Text style={styles.collectionReadonlyText}>日時を設定するとタイムフローを編集できます。</Text></View> : null}
         </>}
 
         {tab === '集金' && <>
@@ -219,6 +229,7 @@ const styles = StyleSheet.create({
   heroDate: { position: 'absolute', left: 18, bottom: 15, flexDirection: 'row', alignItems: 'baseline' },
   heroMonth: { color: '#D5D7D3', fontSize: 18, fontWeight: '700', marginRight: 8 },
   heroDay: { color: palette.surface, fontSize: 58, lineHeight: 61, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  heroUndecided: { color: palette.surface, fontSize: 24, fontWeight: '700', letterSpacing: 0.4 },
   titleBlock: { paddingHorizontal: 20, paddingTop: 20 },
   statusRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 7 }, statusDot: { width: 7, height: 7, borderRadius: 4, marginRight: 6, backgroundColor: palette.accent }, statusText: { color: palette.accent, fontSize: 13, fontWeight: '800' }, host: { color: palette.muted, fontSize: 13 },
   title: { color: palette.ink, fontSize: 27, lineHeight: 34, fontWeight: '900', marginBottom: 5 }, tagline: { color: palette.muted, fontSize: 13 },

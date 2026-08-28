@@ -15,8 +15,14 @@ export function EventCard({ event, featured = false, compact = false }: Props) {
     return (
       <TouchableOpacity style={styles.compact} onPress={() => router.push(`/event/${event.id}`)} activeOpacity={0.76}>
         <View style={styles.dateBlock}>
-          <Text style={styles.dateMonth}>{formatEventMonth(event.startDate)}</Text>
-          <Text style={styles.dateDay}>{event.startDate.slice(-2)}</Text>
+          {event.dateStatus === 'undecided' ? (
+            <Text style={styles.dateUndecided}>未定</Text>
+          ) : (
+            <>
+              <Text style={styles.dateMonth}>{formatEventMonth(event.startDate)}</Text>
+              <Text style={styles.dateDay}>{event.startDate.slice(-2)}</Text>
+            </>
+          )}
         </View>
         <View style={styles.compactCopy}>
           <Text style={styles.compactTitle} numberOfLines={1}>{event.title}</Text>
@@ -38,8 +44,14 @@ export function EventCard({ event, featured = false, compact = false }: Props) {
         </View>
         {!event.coverImageUri ? (
           <View style={styles.coverDate}>
-            <Text style={styles.coverMonth}>{formatEventMonth(event.startDate)}</Text>
-            <Text style={styles.coverDay}>{event.startDate.slice(-2)}</Text>
+            {event.dateStatus === 'undecided' ? (
+              <Text style={styles.coverUndecided}>日時未定</Text>
+            ) : (
+              <>
+                <Text style={styles.coverMonth}>{formatEventMonth(event.startDate)}</Text>
+                <Text style={styles.coverDay}>{event.startDate.slice(-2)}</Text>
+              </>
+            )}
           </View>
         ) : null}
       </View>
@@ -85,6 +97,8 @@ const styles = StyleSheet.create({
   dateBlock: { width: 50, height: 49, borderLeftWidth: 2, borderLeftColor: palette.accent, paddingLeft: 10, justifyContent: 'center' },
   dateMonth: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   dateDay: { color: palette.ink, fontSize: 21, lineHeight: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  dateUndecided: { color: palette.ink, fontSize: 13, fontWeight: '800' },
+  coverUndecided: { color: palette.surface, fontSize: 23, fontWeight: '700', letterSpacing: 0.5 },
   compactCopy: { flex: 1, paddingHorizontal: 13 },
   compactTitle: { color: palette.ink, fontSize: 14, fontWeight: '700', marginBottom: 5 },
   compactMeta: { color: palette.muted, fontSize: 12 },

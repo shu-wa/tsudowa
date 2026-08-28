@@ -14,7 +14,11 @@ export default function HomeScreen() {
   const now = new Date();
   const upcomingEvents = [...events]
     .filter((event) => !isEventArchived(event) && !isEventPast(event, now))
-    .sort((a, b) => `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`));
+    .sort((a, b) => {
+      if (a.dateStatus === 'undecided' && b.dateStatus !== 'undecided') return 1;
+      if (b.dateStatus === 'undecided' && a.dateStatus !== 'undecided') return -1;
+      return `${a.startDate}${a.startTime}`.localeCompare(`${b.startDate}${b.startTime}`);
+    });
   const pastEvents = [...events]
     .filter((event) => isEventPast(event, now))
     .sort((a, b) => `${b.endDate}${b.endTime ?? '23:59'}`.localeCompare(`${a.endDate}${a.endTime ?? '23:59'}`));

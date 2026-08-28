@@ -54,6 +54,10 @@ assert.match(cloudProfileSource, /consent_records/, 'cloud onboarding recovery m
 assert.match(cloudProfileSource, /acceptedDocuments\.has\('terms'\)/, 'completion requires terms consent');
 assert.match(cloudProfileSource, /acceptedDocuments\.has\('privacy'\)/, 'completion requires privacy consent');
 assert.match(cloudProfileSource, /acceptedDocuments\.has\('community'\)/, 'completion requires community consent');
+const cloudCompletionStart = cloudProfileSource.indexOf('export async function syncOnboardingToCloud');
+const cloudCompletionEnd = cloudProfileSource.indexOf('export async function fetchCloudProfile', cloudCompletionStart);
+const cloudCompletionSource = cloudProfileSource.slice(cloudCompletionStart, cloudCompletionEnd);
+assert.match(cloudCompletionSource, /handle: input\.handle/, 'onboarding must save the display ID selected by the user');
 
 const eventContextSource = readFileSync(new URL('../context/event-context.tsx', import.meta.url), 'utf8');
 const hydrationStart = eventContextSource.indexOf('dataStorage.getItem(storageKey)');
@@ -71,10 +75,18 @@ const completionStart = eventContextSource.indexOf('completeOnboarding: async');
 const completionEnd = eventContextSource.indexOf('setNotificationsEnabled:', completionStart);
 const completionSource = eventContextSource.slice(completionStart, completionEnd);
 assert.match(completionSource, /await dataStorage\.setItem\(storageKey/, 'onboarding must persist before navigating away');
+assert.match(completionSource, /authenticatedUserEmail/, 'cloud onboarding must use the authenticated email instead of editable local input');
+assert.match(completionSource, /profileSaveErrorMessage\(error\)/, 'onboarding must identify a duplicate display ID instead of reporting a network error');
 assert.ok(
   completionSource.indexOf('await dataStorage.setItem(storageKey') < completionSource.indexOf('setSettings(nextSettings)'),
   'the durable write must finish before the completed state can redirect the user',
 );
+
+const onboardingScreenSource = readFileSync(new URL('../app/onboarding.tsx', import.meta.url), 'utf8');
+assert.match(onboardingScreenSource, /knownProfile \? 2 : user \? 1 : 0/, 'authenticated incomplete accounts must open the registration form without repeating the welcome step');
+assert.match(onboardingScreenSource, /editable=\{!user\?\.email\}/, 'the verified auth email must not be editable during profile completion');
+assert.match(onboardingScreenSource, /label="表示ID"/, 'registration must ask for a display ID as well as a display name');
+assert.match(onboardingScreenSource, /defaultProfileHandleBody/, 'registration must default the display ID from the email local-part');
 
 const storageSource = readFileSync(new URL('../lib/auth-storage.ts', import.meta.url), 'utf8');
 assert.match(storageSource, /enqueueMutation\(key/, 'encrypted writes for one account must be serialized');

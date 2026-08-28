@@ -15,6 +15,14 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showLoginFallback, setShowLoginFallback] = useState(false);
+
+  const selectMode = (nextMode: Mode) => {
+    setMode(nextMode);
+    setPassword('');
+    setPasswordConfirmation('');
+    setShowLoginFallback(false);
+  };
 
   const submit = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return Alert.alert('メールアドレスを確認してください');
@@ -23,7 +31,22 @@ export default function AuthScreen() {
     setLoading(true);
     const result = mode === 'signup' ? await signUp(email, password) : await signIn(email, password);
     setLoading(false);
-    if (!result.ok) return Alert.alert(mode === 'signup' ? '登録できませんでした' : 'ログインできませんでした', result.message);
+    if (!result.ok) {
+      if (mode === 'login' && result.reason === 'invalid_credentials') {
+        // Supabase deliberately does not reveal whether the email is missing or
+        // the password is wrong. Move to sign-up without claiming which case it
+        // was, and keep password reset available for an existing account.
+        setMode('signup');
+        setPassword('');
+        setPasswordConfirmation('');
+        setShowLoginFallback(true);
+        return Alert.alert(
+          '新規登録画面へ移動しました',
+          'この情報ではログインできませんでした。未登録の場合は新規登録してください。登録済みの場合は「ログイン」に戻り、パスワードを再設定できます。',
+        );
+      }
+      return Alert.alert(mode === 'signup' ? '登録できませんでした' : 'ログインできませんでした', result.message);
+    }
     if (result.needsEmailConfirmation) Alert.alert('確認メールを送りました', 'メール内の確認リンクを開くとTSUDOWAに戻り、そのまま登録の続きを行えます。', [{ text: 'OK' }]);
   };
 
@@ -35,7 +58,8 @@ export default function AuthScreen() {
 
   return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><ScrollView contentContainerStyle={styles.content} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
     <View style={styles.logo}><Ionicons name="people-outline" size={30} color={palette.surface} /></View><Text style={styles.brand}>TSUDOWA</Text><Text style={styles.title}>{mode === 'signup' ? 'アカウントを作成' : 'おかえりなさい'}</Text><Text style={styles.lead}>{mode === 'signup' ? 'メールアドレスで安全にイベントへ参加できます。' : '登録したメールアドレスでログインしてください。'}</Text>
-    <View style={styles.segment}><TouchableOpacity style={[styles.segmentButton, mode === 'signup' && styles.segmentActive]} onPress={() => setMode('signup')}><Text style={[styles.segmentText, mode === 'signup' && styles.segmentTextActive]}>新規登録</Text></TouchableOpacity><TouchableOpacity style={[styles.segmentButton, mode === 'login' && styles.segmentActive]} onPress={() => { setMode('login'); setPasswordConfirmation(''); }}><Text style={[styles.segmentText, mode === 'login' && styles.segmentTextActive]}>ログイン</Text></TouchableOpacity></View>
+    {showLoginFallback && <View style={styles.loginFallback}><Ionicons name="information-circle-outline" size={19} color={palette.primary} /><Text style={styles.loginFallbackText}>未登録の場合は、このまま新規登録してください。登録済みの場合はログインへ戻り、「パスワードを忘れた場合」を選べます。</Text></View>}
+    <View style={styles.segment}><TouchableOpacity style={[styles.segmentButton, mode === 'signup' && styles.segmentActive]} onPress={() => selectMode('signup')}><Text style={[styles.segmentText, mode === 'signup' && styles.segmentTextActive]}>新規登録</Text></TouchableOpacity><TouchableOpacity style={[styles.segmentButton, mode === 'login' && styles.segmentActive]} onPress={() => selectMode('login')}><Text style={[styles.segmentText, mode === 'login' && styles.segmentTextActive]}>ログイン</Text></TouchableOpacity></View>
     <Text style={styles.label}>メールアドレス</Text><View style={styles.inputWrap}><Ionicons name="mail-outline" size={19} color={palette.muted} /><TextInput style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" placeholderTextColor="#9AA39E" /></View>
     <Text style={styles.label}>パスワード</Text><View style={styles.inputWrap}><Ionicons name="lock-closed-outline" size={19} color={palette.muted} /><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} placeholder="8文字以上" placeholderTextColor="#9AA39E" /></View>
     {mode === 'signup' && <><Text style={styles.label}>パスワード（確認）</Text><View style={styles.inputWrap}><Ionicons name="checkmark-circle-outline" size={19} color={palette.muted} /><TextInput accessibilityLabel="確認用パスワード" style={styles.input} value={passwordConfirmation} onChangeText={setPasswordConfirmation} secureTextEntry autoCapitalize="none" autoComplete="new-password" placeholder="同じパスワードをもう一度入力" placeholderTextColor="#9AA39E" /></View></>}
@@ -46,5 +70,5 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 }, content: { flexGrow: 1, justifyContent: 'center', padding: 25, paddingBottom: 40 }, logo: { width: 62, height: 62, borderRadius: 8, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 15 }, brand: { color: palette.accent, fontSize: 12, fontWeight: '900', letterSpacing: 2 }, title: { color: palette.ink, fontSize: 28, fontWeight: '900', marginTop: 7 }, lead: { color: palette.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 24 }, segment: { flexDirection: 'row', backgroundColor: '#E3E4E0', borderRadius: 6, padding: 3, marginBottom: 23 }, segmentButton: { flex: 1, minHeight: 42, borderRadius: 4, alignItems: 'center', justifyContent: 'center' }, segmentActive: { backgroundColor: palette.surface }, segmentText: { color: palette.muted, fontSize: 12, fontWeight: '800' }, segmentTextActive: { color: palette.primary }, label: { color: palette.ink, fontSize: 13, fontWeight: '800', marginBottom: 7 }, inputWrap: { height: 55, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 16 }, input: { flex: 1, color: palette.ink, fontSize: 14, marginLeft: 9 }, forgot: { alignSelf: 'flex-end', marginTop: -6, marginBottom: 14 }, forgotText: { color: palette.primary, fontSize: 13, fontWeight: '800' }, submit: { minHeight: 56, borderRadius: 8, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 5 }, disabled: { opacity: 0.55 }, submitText: { color: palette.surface, fontSize: 14, fontWeight: '900', marginRight: 8 }, security: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 17 }, securityText: { color: palette.muted, fontSize: 11, marginLeft: 6 },
+  safe: { flex: 1, backgroundColor: palette.canvas }, flex: { flex: 1 }, content: { flexGrow: 1, justifyContent: 'center', padding: 25, paddingBottom: 40 }, logo: { width: 62, height: 62, borderRadius: 8, backgroundColor: palette.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 15 }, brand: { color: palette.accent, fontSize: 12, fontWeight: '900', letterSpacing: 2 }, title: { color: palette.ink, fontSize: 28, fontWeight: '900', marginTop: 7 }, lead: { color: palette.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 24 }, loginFallback: { flexDirection: 'row', alignItems: 'flex-start', borderLeftWidth: 3, borderLeftColor: palette.primary, backgroundColor: palette.primarySoft, padding: 12, marginTop: -10, marginBottom: 18 }, loginFallbackText: { flex: 1, color: palette.primary, fontSize: 12, lineHeight: 18, marginLeft: 7 }, segment: { flexDirection: 'row', backgroundColor: '#E3E4E0', borderRadius: 6, padding: 3, marginBottom: 23 }, segmentButton: { flex: 1, minHeight: 42, borderRadius: 4, alignItems: 'center', justifyContent: 'center' }, segmentActive: { backgroundColor: palette.surface }, segmentText: { color: palette.muted, fontSize: 12, fontWeight: '800' }, segmentTextActive: { color: palette.primary }, label: { color: palette.ink, fontSize: 13, fontWeight: '800', marginBottom: 7 }, inputWrap: { height: 55, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginBottom: 16 }, input: { flex: 1, color: palette.ink, fontSize: 14, marginLeft: 9 }, forgot: { alignSelf: 'flex-end', marginTop: -6, marginBottom: 14 }, forgotText: { color: palette.primary, fontSize: 13, fontWeight: '800' }, submit: { minHeight: 56, borderRadius: 8, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 5 }, disabled: { opacity: 0.55 }, submitText: { color: palette.surface, fontSize: 14, fontWeight: '900', marginRight: 8 }, security: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 17 }, securityText: { color: palette.muted, fontSize: 11, marginLeft: 6 },
 });

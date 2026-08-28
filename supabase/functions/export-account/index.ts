@@ -49,13 +49,22 @@ Deno.serve(async (request) => {
     admin.from('date_candidates').select('*').eq('created_by', userId),
     admin.from('date_candidate_votes').select('*').eq('user_id', userId),
     admin.from('event_leave_requests').select('*').eq('user_id', userId),
+    admin.from('message_reactions').select('*').eq('user_id', userId),
+    admin.from('event_group_members').select('*').eq('user_id', userId),
+    admin.from('notification_preferences').select('*').eq('user_id', userId),
+    admin.from('event_notification_preferences').select('*').eq('user_id', userId),
+    admin.from('push_devices').select('installation_id, platform, active, last_seen_at, created_at').eq('user_id', userId),
   ]);
   if (exportQueries.some(({ error }) => error)) {
     return new Response(JSON.stringify({ error: 'export_failed' }), { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } });
   }
-  const [profile, consents, memberships, messages, shares, reports, blocks, ownedEvents, scheduleItems, collections, dateCandidates, dateVotes, leaveRequests] = exportQueries;
+  const [profile, consents, memberships, messages, shares, reports, blocks, ownedEvents, scheduleItems, collections, dateCandidates, dateVotes, leaveRequests, messageReactions, groupMemberships, notificationPreferences, eventNotificationPreferences, pushDevices] = exportQueries;
   const eventIds = (memberships.data ?? []).map((membership) => membership.event_id);
   const { data: events } = eventIds.length ? await admin.from('events').select('*').in('id', eventIds) : { data: [] };
+  const groupIds = (groupMemberships.data ?? []).map((membership) => membership.group_id);
+  const { data: eventGroups } = groupIds.length
+    ? await admin.from('event_groups').select('*').in('id', groupIds)
+    : { data: [] };
   const authoredPhotoPaths = (messages.data ?? []).map((message) => message.image_path).filter(Boolean) as string[];
   const photoLinkExpiresInSeconds = 15 * 60;
   const { data: authoredPhotoLinks, error: authoredPhotoLinksError } = authoredPhotoPaths.length
@@ -99,6 +108,12 @@ Deno.serve(async (request) => {
     created_date_candidates: dateCandidates.data ?? [],
     date_candidate_votes: dateVotes.data ?? [],
     event_leave_requests: leaveRequests.data ?? [],
+    message_reactions: messageReactions.data ?? [],
+    group_memberships: groupMemberships.data ?? [],
+    event_groups: eventGroups ?? [],
+    notification_preferences: notificationPreferences.data ?? [],
+    event_notification_preferences: eventNotificationPreferences.data ?? [],
+    push_devices: pushDevices.data ?? [],
     submitted_reports: reports.data ?? [],
     blocked_users: blocks.data ?? [],
   };

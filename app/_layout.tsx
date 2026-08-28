@@ -39,6 +39,9 @@ export default function RootLayout() {
           <Stack.Screen name="event/[id]/edit-date" options={{ title: '日時を変更', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/edit-location" options={{ title: '場所を設定', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/participants" options={{ title: '参加者一覧', headerBackTitle: '詳細' }} />
+          <Stack.Screen name="event/[id]/groupify" options={{ title: 'グループ化', presentation: 'modal' }} />
+          <Stack.Screen name="group/[id]" options={{ title: 'グループ詳細', headerBackTitle: 'グループ' }} />
+          <Stack.Screen name="group/[id]/new-event" options={{ title: 'イベントを追加', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/availability" options={{ title: '候補日の投票', headerBackTitle: '詳細' }} />
           <Stack.Screen name="event/[id]/availability/new" options={{ title: '候補日を追加', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/collection/new" options={{ title: '集金項目を追加', presentation: 'modal' }} />
@@ -48,6 +51,7 @@ export default function RootLayout() {
           <Stack.Screen name="past-events" options={{ title: '過去の予定', headerBackTitle: 'ホーム' }} />
           <Stack.Screen name="scan" options={{ title: 'QRコードを読み取る', presentation: 'modal' }} />
           <Stack.Screen name="profile-edit" options={{ title: 'プロフィール編集', presentation: 'modal' }} />
+          <Stack.Screen name="notification-settings" options={{ title: '通知設定', headerBackTitle: 'マイページ' }} />
           <Stack.Screen name="event/[id]/schedule/new" options={{ title: '予定を追加', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/schedule/index" options={{ title: 'タイムフロー編集', headerBackTitle: '詳細' }} />
         </Stack>

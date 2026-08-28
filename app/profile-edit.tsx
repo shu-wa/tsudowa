@@ -3,6 +3,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { RefreshableScrollView as ScrollView } from '@/components/refreshable-scroll-view';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { normalizeProfileHandle, profileHandleBody, PROFILE_HANDLE_TAKEN_MESSAGE, validateProfileHandle } from '@/lib/profile-handle';
 import { ChatImageInput } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,7 +17,7 @@ const avatarColors = ['#173E33', '#843B2D', '#354A59', '#51435D', '#6B551D'];
 export default function ProfileEditScreen() {
   const { profile, updateProfile } = useEvents();
   const [name, setName] = useState(profile.name);
-  const [handle, setHandle] = useState(profile.handle.replace('@', ''));
+  const [handle, setHandle] = useState(profileHandleBody(profile.handle));
   const [city, setCity] = useState(profile.city);
   const [avatarColor, setAvatarColor] = useState(profile.avatarColor);
   const [avatarImage, setAvatarImage] = useState<ChatImageInput>();
@@ -45,23 +46,21 @@ export default function ProfileEditScreen() {
 
   const save = async () => {
     if (!name.trim()) return Alert.alert('名前を入力してください');
-    const normalizedHandle = handle.trim().replace(/^@/, '');
-    if (!/^[A-Za-z0-9_]{2,30}$/.test(normalizedHandle)) {
-      return Alert.alert('表示IDを確認してください', '英数字とアンダーバーを使い、2〜30文字で入力してください。');
-    }
+    const handleError = validateProfileHandle(handle);
+    if (handleError) return Alert.alert('表示IDを確認してください', handleError);
     const initials = name.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'ME';
     setSaving(true);
     const error = await updateProfile({
       ...profile,
       name: name.trim(),
-      handle: `@${normalizedHandle}`,
+      handle: normalizeProfileHandle(handle),
       city: city.trim(),
       initials,
       avatarColor,
       avatarUri: avatarImage?.uri ?? profile.avatarUri,
     }, avatarImage);
     setSaving(false);
-    if (error) return Alert.alert('保存できませんでした', error);
+    if (error) return Alert.alert(error === PROFILE_HANDLE_TAKEN_MESSAGE ? 'この表示IDは使用できません' : '保存できませんでした', error);
     router.back();
   };
 

@@ -1,11 +1,13 @@
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { NATIVE_ONBOARDING_REDIRECT, NATIVE_RESET_PASSWORD_REDIRECT, parseAuthCallbackUrl } from '@/lib/auth-redirect';
+import { describeAuthError, type AuthFailureReason } from '@/lib/auth-errors';
+import { unregisterRemoteNotificationDevice } from '@/lib/notifications';
 import { EmailOtpType, Session, User } from '@supabase/supabase-js';
 import * as ExpoLinking from 'expo-linking';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 
-type AuthResult = { ok: true; needsEmailConfirmation?: boolean } | { ok: false; message: string };
+type AuthResult = { ok: true; needsEmailConfirmation?: boolean } | { ok: false; message: string; reason: AuthFailureReason };
 
 type AuthContextValue = {
   isConfigured: boolean;
@@ -21,14 +23,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const authErrorMessage = (message: string) => {
-  if (/invalid login/i.test(message)) return 'メールアドレスまたはパスワードが正しくありません。';
-  if (/email not confirmed/i.test(message)) return '確認メール内のリンクを開いてからログインしてください。';
-  if (/already registered/i.test(message)) return 'このメールアドレスはすでに登録されています。';
-  if (/password/i.test(message)) return 'パスワードは8文字以上で設定してください。';
-  return '認証処理に失敗しました。通信状態を確認して、もう一度お試しください。';
-};
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
@@ -87,34 +81,38 @@ export function AuthProvider({ children }: PropsWithChildren) {
     session,
     user: session?.user ?? null,
     signIn: async (email, password) => {
-      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
+      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。', reason: 'unknown' };
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-      return error ? { ok: false, message: authErrorMessage(error.message) } : { ok: true };
+      if (!error) return { ok: true };
+      return { ok: false, ...describeAuthError(error) };
     },
     signUp: async (email, password) => {
-      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
+      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。', reason: 'unknown' };
       const emailRedirectTo = Platform.OS === 'web' ? ExpoLinking.createURL('/onboarding') : NATIVE_ONBOARDING_REDIRECT;
       const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { emailRedirectTo } });
-      if (error) return { ok: false, message: authErrorMessage(error.message) };
+      if (error) return { ok: false, ...describeAuthError(error) };
       return { ok: true, needsEmailConfirmation: !data.session };
     },
     sendPasswordReset: async (email) => {
-      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
+      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。', reason: 'unknown' };
       const redirectTo = Platform.OS === 'web' ? ExpoLinking.createURL('/reset-password') : NATIVE_RESET_PASSWORD_REDIRECT;
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
-      return error ? { ok: false, message: authErrorMessage(error.message) } : { ok: true };
+      return error ? { ok: false, ...describeAuthError(error) } : { ok: true };
     },
     updatePassword: async (password) => {
-      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。' };
+      if (!supabase) return { ok: false, message: 'Supabaseがまだ設定されていません。', reason: 'unknown' };
       const { error } = await supabase.auth.updateUser({ password });
-      return error ? { ok: false, message: authErrorMessage(error.message) } : { ok: true };
+      return error ? { ok: false, ...describeAuthError(error) } : { ok: true };
     },
     reauthenticate: async (password) => {
-      if (!supabase || !session?.user.email) return { ok: false, message: 'ログイン情報を確認できません。もう一度ログインしてください。' };
+      if (!supabase || !session?.user.email) return { ok: false, message: 'ログイン情報を確認できません。もう一度ログインしてください。', reason: 'unknown' };
       const { error } = await supabase.auth.signInWithPassword({ email: session.user.email, password });
-      return error ? { ok: false, message: 'パスワードが正しくありません。' } : { ok: true };
+      return error ? { ok: false, message: 'パスワードが正しくありません。', reason: 'invalid_credentials' } : { ok: true };
     },
-    signOut: async () => { await supabase?.auth.signOut(); },
+    signOut: async () => {
+      await unregisterRemoteNotificationDevice().catch(() => undefined);
+      await supabase?.auth.signOut();
+    },
   }), [isLoading, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

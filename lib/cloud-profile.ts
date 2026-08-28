@@ -11,7 +11,7 @@ export async function syncOnboardingToCloud(input: OnboardingInput, profile: Use
   if (!userId) return;
   const { error: profileError } = await supabase.from('profiles').update({
     display_name: input.name.trim(),
-    handle: profile.handle,
+    handle: input.handle,
     city: profile.city,
     date_of_birth: input.dateOfBirth,
     avatar_color: profile.avatarColor,

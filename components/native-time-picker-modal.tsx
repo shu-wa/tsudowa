@@ -54,6 +54,7 @@ export function NativeTimePickerModal({ label, value, onConfirm, onCancel }: Pro
             minuteInterval={5}
             locale="ja-JP"
             themeVariant="light"
+            textColor={palette.ink}
             style={styles.picker}
             onChange={(event, date) => {
               if (event.type !== 'dismissed' && date) updateDraft(date);

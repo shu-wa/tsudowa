@@ -29,13 +29,13 @@ export default function CalendarScreen() {
   const monthEvents = useMemo(() => {
     const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-    return events.filter((event) => !isEventArchived(event) && event.startDate <= monthEnd && event.endDate >= monthStart);
+    return events.filter((event) => event.dateStatus !== 'undecided' && !isEventArchived(event) && event.startDate <= monthEnd && event.endDate >= monthStart);
   }, [daysInMonth, events, month, year]);
 
   const moveMonth = (offset: number) => setVisibleMonth(new Date(year, month + offset, 1));
   const dayHasEvent = (day: number) => {
     const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return events.some((event) => !isEventArchived(event) && event.startDate <= key && event.endDate >= key);
+    return events.some((event) => event.dateStatus !== 'undecided' && !isEventArchived(event) && event.startDate <= key && event.endDate >= key);
   };
 
   return (

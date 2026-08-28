@@ -2,11 +2,13 @@ import { getLocalDateKey, parseLocalDateKey, parseLocalDateTime } from '@/lib/da
 import { EventItem } from '@/types/event';
 
 export const getEventEndAt = (event: EventItem): Date | null => {
+  if (event.dateStatus === 'undecided') return null;
   const endTime = event.timeMode === 'range' && event.endTime ? event.endTime : '23:59';
   return parseLocalDateTime(event.endDate, endTime);
 };
 
 export const getEventDisplayStatus = (event: EventItem, now = new Date()): EventItem['status'] => {
+  if (event.dateStatus === 'undecided') return '予定';
   if (event.status === '終了' || isEventArchived(event) || isEventPast(event, now)) return '終了';
   const today = getLocalDateKey(now);
   if (event.startDate <= today) return '開催中';
@@ -33,6 +35,7 @@ export const formatEventMonth = (startDate: string) => {
 };
 
 export const getEventDateKeys = (event: EventItem) => {
+  if (event.dateStatus === 'undecided') return [];
   const start = parseLocalDateKey(event.startDate);
   const end = parseLocalDateKey(event.endDate);
   if (!start || !end || end < start) return [];

@@ -35,10 +35,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="groups"
         options={{
-          title: 'マイページ',
-          tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'person-circle' : 'person-circle-outline'} color={color} />,
+          title: 'グループ',
+          tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'people' : 'people-outline'} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -46,6 +46,13 @@ export default function TabLayout() {
         options={{
           title: '思い出',
           tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'archive' : 'archive-outline'} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'マイページ',
+          tabBarIcon: ({ color, focused }) => <Ionicons size={23} name={focused ? 'person-circle' : 'person-circle-outline'} color={color} />,
         }}
       />
     </Tabs>

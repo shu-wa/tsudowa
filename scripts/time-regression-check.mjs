@@ -20,6 +20,7 @@ const pickerSource = readFileSync(new URL('../components/native-time-picker-moda
 assert.match(pickerSource, /value=\{draftDate\}/, 'the controlled iOS picker must render its live draft value');
 assert.match(pickerSource, /setDraftDate\(date\)/, 'every native wheel event must update the controlled value');
 assert.doesNotMatch(pickerSource, /value=\{initialDate\}/, 'the picker must not stay fixed to its opening value');
+assert.match(pickerSource, /textColor=\{palette\.ink\}/, 'the iOS spinner must keep visible text on iOS 26');
 
 const scheduleSource = readFileSync(new URL('../app/event/[id]/schedule/new.tsx', import.meta.url), 'utf8');
 assert.match(scheduleSource, /initializedEditorKey\.current === editorKey/, 'realtime refreshes must not reinitialize an active schedule form');

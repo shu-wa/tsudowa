@@ -1,9 +1,10 @@
 auditConfig:
   # Expo/Metro build-time image metadata parser. No fixed image-size release is
-  # available yet; keep this exception limited to the two reviewed CVEs.
-  ignoreCves:
-    - CVE-2025-71330
-    - CVE-2025-71329
+  # available yet (reviewed 2026-08-28). Keep this exception limited to the
+  # two reviewed GHSAs and remove it when Expo/Metro adopts a fixed release.
+  ignoreGhsas:
+    - GHSA-w3rx-r6r6-pgpr
+    - GHSA-5p2g-fcmc-qvqq
 onlyBuiltDependencies:
   - unrs-resolver
 
@@ -11,7 +12,7 @@ overrides:
   brace-expansion: 5.0.9
   js-yaml@^3.0.0: 3.15.1
   js-yaml@^4.0.0: 4.3.1
-  nanoid: 3.3.17
+  nanoid: 3.3.18
   postcss: 8.5.23
   tar: 7.5.21
   undici: 6.28.0

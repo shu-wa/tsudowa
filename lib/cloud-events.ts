@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { AttendanceChoice, AvailabilityChoice, ChatImageInput, CollectionItem, EventDateTimeInput, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
+import { AttendanceChoice, AvailabilityChoice, ChatImageInput, ChatReactionEmoji, CollectionItem, EventDateTimeInput, EventGroup, EventInvitePreview, EventItem, EventLocationInput, NewDateCandidateInput, NewScheduleInput } from '@/types/event';
 import { appImageExtension, createAppImageUrls, uploadAppImage } from '@/lib/cloud-media';
 import { normalizeEventDateRange, toDateString } from '@/lib/date-values';
 import * as Crypto from 'expo-crypto';
@@ -22,6 +22,12 @@ type CloudMessage = {
   image_mime_type?: string;
   image_width?: number;
   image_height?: number;
+  reply_to_id?: string;
+  edited_at?: string;
+  deleted_at?: string;
+  pinned_at?: string;
+  pinned_by?: string;
+  reactions?: { user_id: string; emoji: ChatReactionEmoji }[];
   author?: CloudProfile;
 };
 type CloudCandidateVote = { user_id: string; choice: AvailabilityChoice };
@@ -33,9 +39,26 @@ type CloudEvent = {
   location_name?: string; address?: string; latitude?: number; longitude?: number; capacity: number; status: string;
   cover_color: string; accent_color: string; cover_image_path?: string; members?: CloudMember[]; schedule?: CloudSchedule[];
   archived_at?: string;
+  date_status?: 'undecided' | 'scheduled';
+  group_id?: string;
   collections?: CloudCollection[]; messages?: CloudMessage[];
   date_candidates?: CloudDateCandidate[];
   leave_requests?: CloudLeaveRequest[];
+};
+type CloudGroupMember = {
+  user_id: string;
+  role: 'host' | 'cohost' | 'member';
+  joined_at: string;
+  profile?: CloudProfile;
+};
+type CloudGroup = {
+  id: string;
+  owner_id: string;
+  name: string;
+  cover_color: string;
+  created_at: string;
+  updated_at: string;
+  members?: CloudGroupMember[];
 };
 
 const dateLabel = (start: string, end: string) => {
@@ -50,12 +73,17 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
     members:event_members(*, profile:profiles(id, display_name, avatar_color, avatar_path)),
     schedule:schedule_items(*),
     collections(*, shares:collection_shares(*)),
-    messages(*, author:profiles(id, display_name, avatar_color)),
+    messages(*, author:profiles(id, display_name, avatar_color), reactions:message_reactions(user_id, emoji)),
     date_candidates(*, votes:date_candidate_votes(*)),
     leave_requests:event_leave_requests(*, profile:profiles!event_leave_requests_user_id_fkey(id, display_name, avatar_color, avatar_path))
   `).order('start_date', { ascending: true });
   if (error) throw error;
   const cloudEvents = (data ?? []) as CloudEvent[];
+  const { data: mutedRows } = await supabase.from('event_notification_preferences')
+    .select('event_id')
+    .eq('user_id', currentUserId)
+    .eq('muted', true);
+  const mutedEventIds = new Set((mutedRows ?? []).map((row) => row.event_id as string));
   const memberUserIds = [...new Set(cloudEvents.flatMap((event) => (event.members ?? []).map((member) => member.user_id)))];
   const { data: visibleProfiles } = memberUserIds.length
     ? await supabase.from('profiles').select('id, display_name, avatar_color, avatar_path').in('id', memberUserIds)
@@ -90,6 +118,7 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       avatarColor: memberProfile?.avatar_color ?? '#68736C',
       avatarUri: memberProfile?.avatar_path ? appImageUrls.get(memberProfile.avatar_path) : undefined,
       attendance: member.attendance_label ?? '参加',
+      chatReadAt: member.chat_read_at,
     });
     });
     const joinRequests = (event.members ?? []).filter((member) => member.status === 'pending').map((member) => {
@@ -112,11 +141,15 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       host: profileById.get(event.owner_id)?.name ?? '主催者',
       startDate: normalizedDates.startDate,
       endDate: normalizedDates.endDate,
-      dateLabel: dateLabel(normalizedDates.startDate, normalizedDates.endDate),
+      dateLabel: event.date_status === 'undecided' ? '日時未定' : dateLabel(normalizedDates.startDate, normalizedDates.endDate),
       startTime: event.start_time.slice(0, 5),
       endTime: event.end_time?.slice(0, 5),
       timeMode: event.time_mode,
-      timeLabel: event.time_mode === 'range' && event.end_time ? `${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}` : `${event.start_time.slice(0, 5)} 開始`,
+      timeLabel: event.date_status === 'undecided'
+        ? '時間未定'
+        : event.time_mode === 'range' && event.end_time
+          ? `${event.start_time.slice(0, 5)}–${event.end_time.slice(0, 5)}`
+          : `${event.start_time.slice(0, 5)} 開始`,
       location: event.location_name ?? '場所未設定',
       address: event.address ?? '場所未設定',
       latitude: event.latitude,
@@ -127,6 +160,9 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
       coverImagePath: event.cover_image_path,
       coverImageUri: event.cover_image_path ? appImageUrls.get(event.cover_image_path) : undefined,
       status: event.status === 'active' ? '開催中' : event.status === 'completed' || event.status === 'cancelled' ? '終了' : '予定',
+      dateStatus: event.date_status ?? 'scheduled',
+      groupId: event.group_id,
+      notificationsMuted: mutedEventIds.has(event.id),
       inviteCode: '',
       capacity: event.capacity,
       participants,
@@ -164,6 +200,15 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
         imageMimeType: message.image_mime_type,
         imageWidth: message.image_width,
         imageHeight: message.image_height,
+        replyToId: message.reply_to_id,
+        editedAt: message.edited_at,
+        deletedAt: message.deleted_at,
+        pinnedAt: message.pinned_at,
+        pinnedBy: message.pinned_by,
+        reactions: Object.entries((message.reactions ?? []).reduce<Record<string, string[]>>((grouped, reaction) => {
+          (grouped[reaction.emoji] ??= []).push(reaction.user_id);
+          return grouped;
+        }, {})).map(([emoji, userIds]) => ({ emoji: emoji as ChatReactionEmoji, userIds })),
       })),
       chatLastReadAt: event.members?.find((member) => member.user_id === currentUserId)?.chat_read_at,
       archivedAt: event.archived_at,
@@ -203,6 +248,67 @@ export async function archiveCloudEvent(eventId: string) {
   return String(data);
 }
 
+export async function fetchCloudGroups(): Promise<EventGroup[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('event_groups').select(`
+    *,
+    members:event_group_members(*, profile:profiles(id, display_name, avatar_color, avatar_path))
+  `).order('updated_at', { ascending: false });
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return [];
+    throw error;
+  }
+  const groups = (data ?? []) as CloudGroup[];
+  const avatarPaths = [...new Set(groups.flatMap((group) =>
+    (group.members ?? []).map((member) => member.profile?.avatar_path)
+      .filter((path): path is string => Boolean(path))))];
+  const avatarUrls = await createAppImageUrls(avatarPaths);
+  return groups.map((group) => ({
+    id: group.id,
+    ownerId: group.owner_id,
+    name: group.name,
+    coverColor: group.cover_color,
+    createdAt: group.created_at,
+    updatedAt: group.updated_at,
+    members: (group.members ?? []).map((member) => ({
+      id: member.user_id,
+      name: member.profile?.display_name ?? 'メンバー',
+      initials: (member.profile?.display_name ?? 'ME').split(/\s+/)
+        .map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+      role: member.role === 'host' ? '主催者' : member.role === 'cohost' ? '共同主催者' : '参加者',
+      avatarColor: member.profile?.avatar_color ?? '#68736C',
+      avatarUri: member.profile?.avatar_path ? avatarUrls.get(member.profile.avatar_path) : undefined,
+      attendance: '参加',
+    })),
+  }));
+}
+
+export async function createCloudGroupFromEvent(
+  eventId: string,
+  groupName: string,
+  nextEventTitle?: string,
+) {
+  if (!supabase || !isCloudId(eventId)) return null;
+  const { data, error } = await supabase.rpc('create_group_from_event', {
+    source_event_id: eventId,
+    group_name: groupName,
+    next_event_title: nextEventTitle ?? null,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row ? { groupId: row.group_id as string, eventId: row.event_id as string } : null;
+}
+
+export async function createCloudGroupEvent(groupId: string, title: string) {
+  if (!supabase || !isCloudId(groupId)) return null;
+  const { data, error } = await supabase.rpc('create_group_event', {
+    target_group_id: groupId,
+    event_title: title,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
 export async function joinCloudEvent(code: string) {
   if (!supabase) return null;
   const { data, error } = await supabase.rpc('join_event_by_invite', { raw_token: code });
@@ -219,17 +325,18 @@ export async function previewCloudEventInvite(code: string): Promise<EventInvite
   if (!row) return null;
   const startTime = String(row.start_time).slice(0, 5);
   const endTime = row.end_time ? String(row.end_time).slice(0, 5) : undefined;
+  const dateUndecided = row.date_status === 'undecided';
   return {
     eventId: row.event_id as string,
     title: row.event_title as string,
     startDate: row.start_date as string,
     endDate: row.end_date as string,
-    dateLabel: dateLabel(row.start_date as string, row.end_date as string),
-    timeLabel: row.time_mode === 'range' && endTime ? `${startTime}–${endTime}` : `${startTime} 開始`,
+    dateLabel: dateUndecided ? '日時未定' : dateLabel(row.start_date as string, row.end_date as string),
+    timeLabel: dateUndecided ? '時間未定' : row.time_mode === 'range' && endTime ? `${startTime}–${endTime}` : `${startTime} 開始`,
   };
 }
 
-export async function syncCloudMessage(eventId: string, messageId: string, body: string, image?: ChatImageInput) {
+export async function syncCloudMessage(eventId: string, messageId: string, body: string, image?: ChatImageInput, replyToId?: string) {
   if (!supabase || !isCloudId(eventId)) return undefined;
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw new Error('not_authenticated');
@@ -251,7 +358,7 @@ export async function syncCloudMessage(eventId: string, messageId: string, body:
     if (uploadError) throw uploadError;
   }
 
-  const { error } = await supabase.rpc('send_event_message', {
+  const { error } = await supabase.rpc('send_event_message_v2', {
     message_id: messageId,
     target_event_id: eventId,
     message_body: body,
@@ -259,12 +366,52 @@ export async function syncCloudMessage(eventId: string, messageId: string, body:
     message_image_mime_type: image?.mimeType ?? null,
     message_image_width: image?.width ?? null,
     message_image_height: image?.height ?? null,
+    reply_to_message_id: replyToId ?? null,
   });
   if (error) {
     if (imagePath) await supabase.storage.from(CHAT_MEDIA_BUCKET).remove([imagePath]);
     throw error;
   }
   return imagePath;
+}
+
+export async function toggleCloudMessageReaction(messageId: string, emoji: ChatReactionEmoji) {
+  if (!supabase || !isCloudId(messageId)) return false;
+  const { data, error } = await supabase.rpc('toggle_message_reaction', {
+    target_message_id: messageId,
+    reaction_emoji: emoji,
+  });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function editCloudMessage(messageId: string, body: string) {
+  if (!supabase || !isCloudId(messageId)) return new Date().toISOString();
+  const { data, error } = await supabase.rpc('edit_event_message', {
+    target_message_id: messageId,
+    new_body: body,
+  });
+  if (error) throw error;
+  return String(data);
+}
+
+export async function deleteCloudMessage(messageId: string) {
+  if (!supabase || !isCloudId(messageId)) return;
+  const { data: imagePath, error } = await supabase.rpc('delete_event_message', {
+    target_message_id: messageId,
+  });
+  if (error) throw error;
+  if (imagePath) await supabase.storage.from(CHAT_MEDIA_BUCKET).remove([String(imagePath)]);
+}
+
+export async function setCloudMessagePinned(messageId: string, pinned: boolean) {
+  if (!supabase || !isCloudId(messageId)) return pinned ? new Date().toISOString() : undefined;
+  const { data, error } = await supabase.rpc('set_message_pin', {
+    target_message_id: messageId,
+    should_pin: pinned,
+  });
+  if (error) throw error;
+  return data ? String(data) : undefined;
 }
 
 export async function syncCloudEventCover(eventId: string, image: ChatImageInput, previousPath?: string) {
@@ -331,7 +478,26 @@ export async function syncCloudChatRead(eventId: string) {
 
 export async function syncCloudDateTime(eventId: string, input: EventDateTimeInput) {
   if (!supabase || !isCloudId(eventId)) return;
-  await supabase.from('events').update({ start_date: input.startDate, end_date: input.endDate, start_time: input.startTime, end_time: input.timeMode === 'range' ? input.endTime : null, time_mode: input.timeMode }).eq('id', eventId);
+  const payload = {
+    start_date: input.startDate,
+    end_date: input.endDate,
+    start_time: input.startTime,
+    end_time: input.timeMode === 'range' ? input.endTime : null,
+    time_mode: input.timeMode,
+    date_status: 'scheduled',
+    status: 'scheduled',
+  };
+  const { error } = await supabase.from('events').update(payload).eq('id', eventId);
+  if (!error) return;
+  if (error.code !== '42703' && error.code !== 'PGRST204') throw error;
+  const { error: fallbackError } = await supabase.from('events').update({
+    start_date: input.startDate,
+    end_date: input.endDate,
+    start_time: input.startTime,
+    end_time: input.timeMode === 'range' ? input.endTime : null,
+    time_mode: input.timeMode,
+  }).eq('id', eventId);
+  if (fallbackError) throw fallbackError;
 }
 
 export async function syncCloudLocation(eventId: string, input: EventLocationInput) {

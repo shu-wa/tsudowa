@@ -2,13 +2,15 @@ import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
 import { fetchCloudOnboardingState, fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
-import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudInvite, deleteCloudCollection, deleteCloudEvent, deleteCloudSchedule, fetchCloudEvents, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, updateCloudCollection, updateCloudSchedule } from '@/lib/cloud-events';
+import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudGroupEvent, createCloudGroupFromEvent, createCloudInvite, deleteCloudCollection, deleteCloudEvent, deleteCloudMessage, deleteCloudSchedule, editCloudMessage, fetchCloudEvents, fetchCloudGroups, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, setCloudMessagePinned, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, toggleCloudMessageReaction, updateCloudCollection, updateCloudSchedule } from '@/lib/cloud-events';
 import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/date-values';
 import { buildCollectionShares, collectionSharesTotal } from '@/lib/collection-values';
 import { isEventArchived, isEventPast } from '@/lib/event-display';
-import { requestNotificationPermission, syncLocalReminders } from '@/lib/notifications';
+import { registerRemoteNotificationDevice, requestNotificationPermission, syncLocalReminders, unregisterRemoteNotificationDevice } from '@/lib/notifications';
+import { defaultNotificationPreferences, fetchCloudNotificationSettings, syncCloudEventNotificationMuted, syncCloudNotificationSettings } from '@/lib/cloud-notifications';
 import { isEventHost, isEventManager } from '@/lib/event-permissions';
 import { hasStoredOnboardingEvidence, isKnownProfileName } from '@/lib/onboarding-state';
+import { normalizeProfileHandle, profileSaveErrorMessage } from '@/lib/profile-handle';
 import { formatEventTimeLabel } from '@/lib/time-values';
 import { useAuth } from '@/context/auth-context';
 import {
@@ -18,16 +20,20 @@ import {
   BlockedUser,
   ChatImageInput,
   ChatMessage,
+  ChatReactionEmoji,
   CollectionItem,
   ConsentRecord,
   EventDateTimeInput,
+  EventGroup,
   EventInvitePreview,
   EventItem,
   EventLocationInput,
+  GroupCreationResult,
   NewCollectionInput,
   NewDateCandidateInput,
   NewEventInput,
   NewScheduleInput,
+  NotificationPreferences,
   OnboardingInput,
   SafetyReport,
   UserProfile,
@@ -51,6 +57,7 @@ const defaultProfile: UserProfile = {
 
 const defaultSettings: AppSettings = {
   notificationsEnabled: false,
+  notificationPreferences: defaultNotificationPreferences,
   onboardingCompleted: false,
 };
 
@@ -60,6 +67,7 @@ const COMMUNITY_VERSION = legalConfig.communityVersion;
 
 type EventContextValue = {
   events: EventItem[];
+  groups: EventGroup[];
   profile: UserProfile;
   settings: AppSettings;
   reports: SafetyReport[];
@@ -73,7 +81,11 @@ type EventContextValue = {
   addScheduleItem: (eventId: string, input: NewScheduleInput) => Promise<string | null>;
   updateScheduleItem: (eventId: string, scheduleId: string, input: NewScheduleInput) => Promise<string | null>;
   deleteScheduleItem: (eventId: string, scheduleId: string) => Promise<string | null>;
-  addMessage: (eventId: string, text: string, image?: ChatImageInput) => Promise<string | null>;
+  addMessage: (eventId: string, text: string, image?: ChatImageInput, replyToId?: string) => Promise<string | null>;
+  editMessage: (eventId: string, messageId: string, text: string) => Promise<string | null>;
+  deleteMessage: (eventId: string, messageId: string) => Promise<string | null>;
+  toggleMessageReaction: (eventId: string, messageId: string, emoji: ChatReactionEmoji) => Promise<string | null>;
+  setMessagePinned: (eventId: string, messageId: string, pinned: boolean) => Promise<string | null>;
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
   toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => Promise<string | null>;
@@ -86,6 +98,11 @@ type EventContextValue = {
   reviewEventLeave: (eventId: string, userId: string, decision: 'approved' | 'declined') => Promise<string | null>;
   completeOnboarding: (input: OnboardingInput) => Promise<string | null>;
   setNotificationsEnabled: (enabled: boolean) => Promise<string | null>;
+  setNotificationPreferences: (preferences: NotificationPreferences) => Promise<string | null>;
+  setEventNotificationMuted: (eventId: string, muted: boolean) => Promise<string | null>;
+  createGroupFromEvent: (eventId: string, groupName: string, nextEventTitle?: string) => Promise<GroupCreationResult>;
+  addEventToGroup: (groupId: string, title: string) => Promise<GroupCreationResult>;
+  findGroup: (id: string) => EventGroup | undefined;
   submitSafetyReport: (report: Omit<SafetyReport, 'id' | 'createdAt' | 'status'>) => Promise<string | null>;
   toggleBlockUser: (name: string, userId?: string) => void;
   exportUserData: () => Promise<string>;
@@ -137,10 +154,11 @@ const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event)
   return ({
   ...event,
   ...normalizedDates,
-  dateLabel: formatDateLabel(normalizedDates.startDate, normalizedDates.endDate),
+  dateLabel: event.dateStatus === 'undecided' ? '日時未定' : formatDateLabel(normalizedDates.startDate, normalizedDates.endDate),
   startTime: event.startTime ?? event.timeLabel.match(/\d{1,2}:\d{2}/)?.[0]?.padStart(5, '0') ?? '09:00',
   endTime: event.endTime ?? event.timeLabel.match(/\d{1,2}:\d{2}/g)?.[1]?.padStart(5, '0'),
   timeMode: event.timeMode ?? (event.timeLabel.match(/\d{1,2}:\d{2}/g)?.length === 2 ? 'range' : 'start'),
+  timeLabel: event.dateStatus === 'undecided' ? '時間未定' : event.timeLabel,
   schedule: (event.schedule ?? []).map((item) => ({
     ...item,
     day: normalizeScheduleDay(item.day, normalizedDates.startDate),
@@ -156,6 +174,48 @@ const normalizeEvents = (events: EventItem[]): EventItem[] => events.map((event)
   });
 });
 
+const buildUndatedGroupEvent = (
+  id: string,
+  title: string,
+  groupId: string,
+  members: EventItem['participants'],
+  coverColor: string,
+  accentColor: string,
+): EventItem => {
+  const placeholderDate = toDateString(new Date());
+  const host = members.find((member) => member.role === '主催者');
+  return {
+    id,
+    title,
+    category: 'EVENT',
+    tagline: '',
+    host: host?.name ?? '主催者',
+    startDate: placeholderDate,
+    endDate: placeholderDate,
+    dateLabel: '日時未定',
+    startTime: '09:00',
+    timeMode: 'start',
+    timeLabel: '時間未定',
+    dateStatus: 'undecided',
+    groupId,
+    location: '場所未設定',
+    address: '場所未設定',
+    description: '',
+    coverColor,
+    accentColor,
+    status: '予定',
+    inviteCode: '',
+    capacity: 10000,
+    participants: members.map((member) => ({ ...member, attendance: '参加' })),
+    joinRequests: [],
+    leaveRequests: [],
+    dateCandidates: [],
+    schedule: [],
+    collections: [],
+    messages: [],
+  };
+};
+
 export function EventProvider({ children }: PropsWithChildren) {
   const { user, isConfigured } = useAuth();
   const authenticatedUserId = user?.id;
@@ -164,6 +224,7 @@ export function EventProvider({ children }: PropsWithChildren) {
   const legacyStorageKey = `${LEGACY_STORAGE_KEY}/${authenticatedUserId ?? 'local'}`;
   const dataStorage = isConfigured ? authStorage : AsyncStorage;
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [groups, setGroups] = useState<EventGroup[]>([]);
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [reports, setReports] = useState<SafetyReport[]>([]);
@@ -175,6 +236,7 @@ export function EventProvider({ children }: PropsWithChildren) {
     let active = true;
     setIsHydrated(false);
     setEvents([]);
+    setGroups([]);
     setProfile(defaultProfile);
     setSettings(defaultSettings);
     setReports([]);
@@ -192,12 +254,19 @@ export function EventProvider({ children }: PropsWithChildren) {
       .then(async (stored) => {
         if (!active) return;
         const parsed = stored
-          ? JSON.parse(stored) as { events?: EventItem[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] }
+          ? JSON.parse(stored) as { events?: EventItem[]; groups?: EventGroup[]; profile?: UserProfile; settings?: AppSettings; reports?: SafetyReport[]; consentHistory?: ConsentRecord[]; blockedUsers?: BlockedUser[] }
           : {};
         let nextProfile = parsed.profile ?? defaultProfile;
         const legacyDefaultCity = nextProfile.name === 'Test' && nextProfile.handle === '@tamasyu0202' && nextProfile.city === 'Tokyo';
         if (legacyDefaultCity) nextProfile = { ...nextProfile, city: '' };
-        let nextSettings = { ...defaultSettings, ...parsed.settings };
+        let nextSettings = {
+          ...defaultSettings,
+          ...parsed.settings,
+          notificationPreferences: {
+            ...defaultNotificationPreferences,
+            ...parsed.settings?.notificationPreferences,
+          },
+        };
         let nextConsentHistory = parsed.consentHistory ?? [];
         const hasLocalOnboardingEvidence = hasStoredOnboardingEvidence(
           nextSettings,
@@ -249,6 +318,7 @@ export function EventProvider({ children }: PropsWithChildren) {
                 try {
                   await syncOnboardingToCloud({
                     name: nextProfile.name,
+                    handle: nextProfile.handle,
                     email: authenticatedUserEmail ?? nextProfile.email ?? '',
                     dateOfBirth: nextSettings.dateOfBirth,
                   }, nextProfile);
@@ -280,12 +350,22 @@ export function EventProvider({ children }: PropsWithChildren) {
                 }
               }
             }
+            const cloudNotifications = await fetchCloudNotificationSettings(authenticatedUserId)
+              .catch(() => null);
+            if (cloudNotifications) {
+              nextSettings = {
+                ...nextSettings,
+                notificationsEnabled: cloudNotifications.enabled,
+                notificationPreferences: cloudNotifications.preferences,
+              };
+            }
           } catch {
             // Keep the encrypted local state when the network is temporarily unavailable.
           }
         }
         if (!active) return;
         if (!isConfigured && parsed.events) setEvents(normalizeEvents(parsed.events).filter((event) => !LEGACY_SAMPLE_EVENT_IDS.has(event.id)));
+        if (!isConfigured && parsed.groups) setGroups(parsed.groups);
         setProfile(nextProfile);
         setSettings(nextSettings);
         if (!isConfigured && parsed.reports) setReports(parsed.reports);
@@ -301,9 +381,9 @@ export function EventProvider({ children }: PropsWithChildren) {
     if (!isHydrated) return;
     const persisted = isConfigured
       ? { profile: { ...profile, email: undefined }, settings, consentHistory }
-      : { events, profile, settings, reports, consentHistory, blockedUsers };
+      : { events, groups, profile, settings, reports, consentHistory, blockedUsers };
     dataStorage.setItem(storageKey, JSON.stringify(persisted)).catch(() => undefined);
-  }, [blockedUsers, consentHistory, dataStorage, events, isConfigured, isHydrated, profile, reports, settings, storageKey]);
+  }, [blockedUsers, consentHistory, dataStorage, events, groups, isConfigured, isHydrated, profile, reports, settings, storageKey]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -317,17 +397,39 @@ export function EventProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!isHydrated) return;
-    void syncLocalReminders(events, settings.notificationsEnabled).catch(() => undefined);
-  }, [events, isHydrated, settings.notificationsEnabled]);
+    void syncLocalReminders(
+      events,
+      settings.notificationsEnabled,
+      settings.notificationPreferences,
+    ).catch(() => undefined);
+  }, [events, isHydrated, settings.notificationPreferences, settings.notificationsEnabled]);
+
+  useEffect(() => {
+    if (!isConfigured || !isHydrated || !settings.notificationsEnabled || !user) return;
+    const preferences = {
+      ...defaultNotificationPreferences,
+      ...settings.notificationPreferences,
+    };
+    void syncCloudNotificationSettings(user.id, true, preferences)
+      .then(() => registerRemoteNotificationDevice())
+      .catch(() => undefined);
+  }, [isConfigured, isHydrated, settings.notificationPreferences, settings.notificationsEnabled, user]);
 
   useEffect(() => {
     if (!isConfigured || !isHydrated || !settings.onboardingCompleted || !user) return;
     let active = true;
-    const refresh = () => fetchCloudEvents(user.id).then((cloudEvents) => { if (active) setEvents(cloudEvents); }).catch(() => undefined);
+    const refresh = () => Promise.all([fetchCloudEvents(user.id), fetchCloudGroups()])
+      .then(([cloudEvents, cloudGroups]) => {
+        if (!active) return;
+        setEvents(cloudEvents);
+        setGroups(cloudGroups);
+      })
+      .catch(() => undefined);
     void refresh();
     const client = supabase;
     const channel = client?.channel(`tsudowa-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_members' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'date_candidates' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'date_candidate_votes' }, refresh)
@@ -336,6 +438,9 @@ export function EventProvider({ children }: PropsWithChildren) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_shares' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_leave_requests' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_groups' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_group_members' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'event_notification_preferences' }, refresh)
       .subscribe();
     return () => { active = false; if (client && channel) void client.removeChannel(channel); };
   }, [isConfigured, isHydrated, settings.onboardingCompleted, user]);
@@ -380,6 +485,7 @@ export function EventProvider({ children }: PropsWithChildren) {
 
   const value = useMemo<EventContextValue>(() => ({
     events,
+    groups,
     profile,
     settings,
     reports,
@@ -395,8 +501,12 @@ export function EventProvider({ children }: PropsWithChildren) {
           await syncProfileToCloud(profile);
           cloudProfile = await fetchCloudProfile(user.id);
         }
-        const cloudEvents = await fetchCloudEvents(user.id);
+        const [cloudEvents, cloudGroups] = await Promise.all([
+          fetchCloudEvents(user.id),
+          fetchCloudGroups(),
+        ]);
         setEvents(cloudEvents);
+        setGroups(cloudGroups);
         if (cloudProfile) setProfile((current) => ({ ...current, ...cloudProfile, email: user.email }));
         return null;
       } catch {
@@ -404,6 +514,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }
     },
     findEvent: (id) => events.find((event) => event.id === id),
+    findGroup: (id) => groups.find((group) => group.id === id),
     joinByCode: (code) => events.find((event) => event.inviteCode === code.trim().toUpperCase()),
     previewEventByCode: async (code) => {
       const normalizedCode = code.trim().toUpperCase();
@@ -604,6 +715,7 @@ export function EventProvider({ children }: PropsWithChildren) {
           endTime: undefined,
           timeMode: 'start',
           timeLabel: formatEventTimeLabel(candidate.startTime, undefined, 'start'),
+          dateStatus: 'scheduled',
         }));
         return null;
       } catch {
@@ -612,6 +724,8 @@ export function EventProvider({ children }: PropsWithChildren) {
     },
     updateProfile: async (nextProfile, image) => {
       const previous = profile;
+      const previousEvents = events;
+      const previousGroups = groups;
       const optimistic = { ...nextProfile, avatarUri: image?.uri ?? nextProfile.avatarUri };
       setProfile(optimistic);
       setEvents((current) => current.map((event) => ({
@@ -621,14 +735,23 @@ export function EventProvider({ children }: PropsWithChildren) {
           ? { ...participant, name: optimistic.name, initials: optimistic.initials, avatarColor: optimistic.avatarColor, avatarUri: optimistic.avatarUri }
           : participant),
       })));
+      setGroups((current) => current.map((group) => ({
+        ...group,
+        members: group.members.map((member) => member.id === user?.id || (!user && member.id === 'me')
+          ? { ...member, name: optimistic.name, initials: optimistic.initials, avatarColor: optimistic.avatarColor, avatarUri: optimistic.avatarUri }
+          : member),
+      })));
       try {
         const avatarPath = await syncProfileToCloud(nextProfile, image);
         setProfile((current) => ({ ...current, avatarPath: avatarPath ?? current.avatarPath }));
         return null;
       } catch (error) {
         setProfile(previous);
+        setEvents(previousEvents);
+        setGroups(previousGroups);
+        const profileError = profileSaveErrorMessage(error);
+        if (profileError) return profileError;
         const message = error instanceof Error ? error.message : '';
-        if (message.includes('duplicate') || message.includes('profiles_handle_key')) return 'この表示IDはすでに使われています。';
         if (message === 'image_too_large') return 'プロフィール画像は8MB以下にしてください。';
         return 'プロフィールを保存できませんでした。通信状態を確認してください。';
       }
@@ -680,6 +803,113 @@ export function EventProvider({ children }: PropsWithChildren) {
         if (message.includes('not_allowed')) return 'アーカイブできるのは主催者・共同主催者だけです。';
         if (message.includes('event_not_found')) return 'イベントが見つかりません。ホームで再読み込みしてください。';
         return 'アーカイブできませんでした。通信状態を確認して、もう一度お試しください。';
+      }
+    },
+    createGroupFromEvent: async (eventId, groupName, nextEventTitle) => {
+      const target = events.find((event) => event.id === eventId);
+      const normalizedName = groupName.trim();
+      const normalizedTitle = nextEventTitle?.trim() || target?.title || '';
+      if (!target) return { error: 'イベントが見つかりません。' };
+      if (!normalizedName || normalizedName.length > 80) {
+        return { error: 'グループ名は1〜80文字で入力してください。' };
+      }
+      if (!isEventManager(target, user?.id, profile.name)) {
+        return { error: 'グループ化できるのは主催者・共同主催者だけです。' };
+      }
+      if (isEventArchived(target)) return { error: 'アーカイブ済みのイベントはグループ化できません。' };
+      if (!isEventPast(target)) return { error: '終了したイベントからグループを作成できます。' };
+      try {
+        if (supabase && user) {
+          const result = await createCloudGroupFromEvent(eventId, normalizedName, normalizedTitle);
+          if (!result) return { error: 'グループを作成できませんでした。' };
+          const [cloudEvents, cloudGroups] = await Promise.all([
+            fetchCloudEvents(user.id),
+            fetchCloudGroups(),
+          ]);
+          setEvents(cloudEvents);
+          setGroups(cloudGroups);
+          return result;
+        }
+
+        const existingGroup = target.groupId
+          ? groups.find((group) => group.id === target.groupId)
+          : undefined;
+        const groupId = existingGroup?.id ?? Crypto.randomUUID();
+        const now = new Date().toISOString();
+        const host = target.participants.find((member) => member.role === '主催者');
+        const group: EventGroup = existingGroup ?? {
+          id: groupId,
+          ownerId: host?.id ?? user?.id ?? 'me',
+          name: normalizedName,
+          coverColor: target.coverColor,
+          members: target.participants,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const nextEvent = buildUndatedGroupEvent(
+          Crypto.randomUUID(),
+          normalizedTitle,
+          groupId,
+          group.members,
+          group.coverColor,
+          target.accentColor,
+        );
+        setGroups((current) => existingGroup
+          ? current.map((item) => item.id === groupId ? { ...item, updatedAt: now } : item)
+          : [group, ...current]);
+        setEvents((current) => [
+          nextEvent,
+          ...current.map((event) => event.id === eventId ? { ...event, groupId } : event),
+        ]);
+        return { groupId, eventId: nextEvent.id };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('event_not_finished')) return { error: 'イベントの終了時刻を過ぎてからグループ化できます。' };
+        if (message.includes('event_already_archived')) return { error: 'アーカイブ済みのイベントはグループ化できません。' };
+        if (message.includes('not_allowed')) return { error: 'グループ化する権限がありません。' };
+        return { error: 'グループを作成できませんでした。通信状態を確認してください。' };
+      }
+    },
+    addEventToGroup: async (groupId, title) => {
+      const group = groups.find((item) => item.id === groupId);
+      const normalizedTitle = title.trim();
+      if (!group) return { error: 'グループが見つかりません。' };
+      if (!normalizedTitle || normalizedTitle.length > 140) {
+        return { error: 'イベント名は1〜140文字で入力してください。' };
+      }
+      const me = group.members.find((member) =>
+        member.id === user?.id || (!user && (member.id === 'me' || member.name === profile.name)));
+      if (!me || !['主催者', '共同主催者'].includes(me.role)) {
+        return { error: 'イベントを追加できるのは主催者・共同主催者だけです。' };
+      }
+      try {
+        if (supabase && user) {
+          const eventId = await createCloudGroupEvent(groupId, normalizedTitle);
+          if (!eventId) return { error: 'イベントを追加できませんでした。' };
+          const [cloudEvents, cloudGroups] = await Promise.all([
+            fetchCloudEvents(user.id),
+            fetchCloudGroups(),
+          ]);
+          setEvents(cloudEvents);
+          setGroups(cloudGroups);
+          return { groupId, eventId };
+        }
+        const nextEvent = buildUndatedGroupEvent(
+          Crypto.randomUUID(),
+          normalizedTitle,
+          groupId,
+          group.members,
+          group.coverColor,
+          '#A8442F',
+        );
+        setEvents((current) => [nextEvent, ...current]);
+        setGroups((current) => current.map((item) =>
+          item.id === groupId ? { ...item, updatedAt: new Date().toISOString() } : item));
+        return { groupId, eventId: nextEvent.id };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('not_allowed')) return { error: 'イベントを追加する権限がありません。' };
+        return { error: 'イベントを追加できませんでした。通信状態を確認してください。' };
       }
     },
     requestEventLeave: async (eventId) => {
@@ -744,11 +974,14 @@ export function EventProvider({ children }: PropsWithChildren) {
     completeOnboarding: async (input) => {
       const recordedAt = new Date().toISOString();
       const initials = input.name.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'ME';
-      const handlePart = input.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
-      const nextProfile = { ...profile, name: input.name.trim(), email: input.email.trim().toLowerCase(), initials, handle: `@${handlePart.length >= 2 ? handlePart : 'member'}` };
+      const canonicalEmail = authenticatedUserEmail?.trim().toLowerCase() || input.email.trim().toLowerCase();
+      const normalizedHandle = normalizeProfileHandle(input.handle);
+      const nextProfile = { ...profile, name: input.name.trim(), email: canonicalEmail, initials, handle: normalizedHandle };
       try {
-        await syncOnboardingToCloud(input, nextProfile);
-      } catch {
+        await syncOnboardingToCloud({ ...input, email: canonicalEmail, handle: normalizedHandle }, nextProfile);
+      } catch (error) {
+        const profileError = profileSaveErrorMessage(error);
+        if (profileError) return profileError;
         return 'プロフィールを登録できませんでした。通信状態を確認して、もう一度お試しください。';
       }
       const nextSettings = {
@@ -771,7 +1004,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       // navigation could happen before the state-driven storage effect finished.
       const persisted = isConfigured
         ? { profile: { ...nextProfile, email: undefined }, settings: nextSettings, consentHistory: nextConsentHistory }
-        : { events, profile: nextProfile, settings: nextSettings, reports, consentHistory: nextConsentHistory, blockedUsers };
+        : { events, groups, profile: nextProfile, settings: nextSettings, reports, consentHistory: nextConsentHistory, blockedUsers };
       try {
         await dataStorage.setItem(storageKey, JSON.stringify(persisted));
       } catch {
@@ -783,17 +1016,66 @@ export function EventProvider({ children }: PropsWithChildren) {
       return null;
     },
     setNotificationsEnabled: async (enabled) => {
+      const preferences = {
+        ...defaultNotificationPreferences,
+        ...settings.notificationPreferences,
+      };
       if (enabled) {
         try {
           const granted = await requestNotificationPermission();
           if (!granted) return '端末の設定でTSUDOWAの通知を許可してください。';
+          if (supabase && user) {
+            await syncCloudNotificationSettings(user.id, true, preferences);
+            await registerRemoteNotificationDevice();
+          }
         } catch {
-          return '通知を有効にできませんでした。端末の設定を確認してください。';
+          return '通知を有効にできませんでした。通信状態と端末の通知設定を確認してください。';
+        }
+      } else if (supabase && user) {
+        try {
+          await syncCloudNotificationSettings(user.id, false, preferences);
+          await unregisterRemoteNotificationDevice();
+        } catch {
+          return '通知設定を更新できませんでした。通信状態を確認してください。';
         }
       }
-      setSettings((current) => ({ ...current, notificationsEnabled: enabled }));
+      setSettings((current) => ({
+        ...current,
+        notificationsEnabled: enabled,
+        notificationPreferences: preferences,
+      }));
       if (!enabled) void syncLocalReminders(events, false).catch(() => undefined);
       return null;
+    },
+    setNotificationPreferences: async (preferences) => {
+      const normalized = { ...defaultNotificationPreferences, ...preferences };
+      try {
+        if (supabase && user) {
+          await syncCloudNotificationSettings(
+            user.id,
+            settings.notificationsEnabled,
+            normalized,
+          );
+        }
+        setSettings((current) => ({ ...current, notificationPreferences: normalized }));
+        return null;
+      } catch {
+        return '通知設定を保存できませんでした。通信状態を確認してください。';
+      }
+    },
+    setEventNotificationMuted: async (eventId, muted) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target) return 'イベントが見つかりません。';
+      try {
+        if (supabase && user) {
+          await syncCloudEventNotificationMuted(eventId, user.id, muted);
+        }
+        setEvents((current) => current.map((event) =>
+          event.id === eventId ? { ...event, notificationsMuted: muted } : event));
+        return null;
+      } catch {
+        return 'イベントの通知設定を保存できませんでした。通信状態を確認してください。';
+      }
     },
     submitSafetyReport: async (report) => {
       const reportingSelf = report.targetUserId
@@ -842,7 +1124,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         if (error) throw error;
         return JSON.stringify(data, null, 2);
       }
-      return JSON.stringify({ exportedAt: new Date().toISOString(), profile, settings, events, reports, consentHistory, blockedUsers }, null, 2);
+      return JSON.stringify({ exportedAt: new Date().toISOString(), profile, settings, events, groups, reports, consentHistory, blockedUsers }, null, 2);
     },
     deleteLocalAccount: async () => {
       if (supabase) {
@@ -852,6 +1134,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }
       await Promise.all([dataStorage.removeItem(storageKey), dataStorage.removeItem(legacyStorageKey)]);
       setEvents([]);
+      setGroups([]);
       setProfile(defaultProfile);
       setSettings(defaultSettings);
       setReports([]);
@@ -861,8 +1144,9 @@ export function EventProvider({ children }: PropsWithChildren) {
     },
     resetLocalData: () => {
       setEvents([]);
+      setGroups([]);
     },
-    addMessage: async (eventId, text, image) => {
+    addMessage: async (eventId, text, image, replyToId) => {
       const target = events.find((event) => event.id === eventId);
       if (!target) return 'イベントが見つかりません。';
       if (isEventArchived(target)) return 'アーカイブ済みのイベントには投稿できません。';
@@ -871,6 +1155,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const validationError = normalizedText ? validateUserContent(normalizedText) : null;
       if (validationError) return validationError;
       if (image?.fileSize && image.fileSize > 8 * 1024 * 1024) return '写真は8MB以下にしてください。';
+      if (replyToId && !target.messages.some((message) => message.id === replyToId && !message.deletedAt)) return '返信先のメッセージが見つかりません。';
       const message: ChatMessage = {
         id: Crypto.randomUUID(),
         authorId: user?.id,
@@ -885,9 +1170,11 @@ export function EventProvider({ children }: PropsWithChildren) {
         imageMimeType: image?.mimeType,
         imageWidth: image?.width,
         imageHeight: image?.height,
+        replyToId,
+        reactions: [],
       };
       try {
-        message.imagePath = await syncCloudMessage(eventId, message.id, normalizedText, image);
+        message.imagePath = await syncCloudMessage(eventId, message.id, normalizedText, image, replyToId);
       } catch (error) {
         const messageText = error instanceof Error
           ? error.message
@@ -903,6 +1190,105 @@ export function EventProvider({ children }: PropsWithChildren) {
         : event));
       return null;
     },
+    editMessage: async (eventId, messageId, text) => {
+      const target = events.find((event) => event.id === eventId);
+      const message = target?.messages.find((item) => item.id === messageId);
+      if (!target || !message) return 'メッセージが見つかりません。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
+      if (!message.mine) return '自分のメッセージだけ編集できます。';
+      if (message.deletedAt) return '取り消したメッセージは編集できません。';
+      if (Date.now() - Date.parse(message.createdAt) > 15 * 60 * 1000) return '送信から15分を過ぎたため編集できません。';
+      const normalizedText = text.trim();
+      if (!normalizedText) return 'メッセージを入力してください。';
+      const validationError = validateUserContent(normalizedText);
+      if (validationError) return validationError;
+      const previous = message;
+      const editedAt = new Date().toISOString();
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+        ...event,
+        messages: event.messages.map((item) => item.id === messageId ? { ...item, text: normalizedText, editedAt } : item),
+      }));
+      try {
+        const cloudEditedAt = await editCloudMessage(messageId, normalizedText);
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+          ...event,
+          messages: event.messages.map((item) => item.id === messageId ? { ...item, editedAt: cloudEditedAt } : item),
+        }));
+        return null;
+      } catch (error) {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? previous : item) }));
+        const errorText = error instanceof Error ? error.message : String(error);
+        if (errorText.includes('edit_window_expired')) return '送信から15分を過ぎたため編集できません。';
+        return 'メッセージを編集できませんでした。通信状態を確認してください。';
+      }
+    },
+    deleteMessage: async (eventId, messageId) => {
+      const target = events.find((event) => event.id === eventId);
+      const message = target?.messages.find((item) => item.id === messageId);
+      if (!target || !message) return 'メッセージが見つかりません。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
+      if (!message.mine && !isEventManager(target, user?.id, profile.name)) return 'このメッセージを削除する権限がありません。';
+      if (message.mine && Date.now() - Date.parse(message.createdAt) > 24 * 60 * 60 * 1000 && !isEventManager(target, user?.id, profile.name)) return '送信から24時間を過ぎたため取り消せません。';
+      const previous = message;
+      const deletedAt = new Date().toISOString();
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : {
+        ...event,
+        messages: event.messages.map((item) => item.id === messageId ? {
+          ...item, text: '', imageUri: undefined, imagePath: undefined, imageMimeType: undefined,
+          imageWidth: undefined, imageHeight: undefined, deletedAt, editedAt: undefined,
+          pinnedAt: undefined, pinnedBy: undefined, reactions: [],
+        } : item),
+      }));
+      try {
+        await deleteCloudMessage(messageId);
+        return null;
+      } catch (error) {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? previous : item) }));
+        const errorText = error instanceof Error ? error.message : String(error);
+        if (errorText.includes('delete_window_expired')) return '送信から24時間を過ぎたため取り消せません。';
+        return 'メッセージを取り消せませんでした。通信状態と権限を確認してください。';
+      }
+    },
+    toggleMessageReaction: async (eventId, messageId, emoji) => {
+      const target = events.find((event) => event.id === eventId);
+      const message = target?.messages.find((item) => item.id === messageId);
+      if (!target || !message || message.deletedAt) return 'メッセージが見つかりません。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントにはリアクションできません。';
+      const reactorId = user?.id ?? 'me';
+      const previous = message.reactions ?? [];
+      const selected = previous.find((reaction) => reaction.emoji === emoji);
+      const hasReacted = selected?.userIds.includes(reactorId) ?? false;
+      const next = previous
+        .map((reaction) => reaction.emoji !== emoji ? reaction : { ...reaction, userIds: hasReacted ? reaction.userIds.filter((id) => id !== reactorId) : [...reaction.userIds, reactorId] })
+        .filter((reaction) => reaction.userIds.length > 0);
+      if (!selected && !hasReacted) next.push({ emoji, userIds: [reactorId] });
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? { ...item, reactions: next } : item) }));
+      try {
+        await toggleCloudMessageReaction(messageId, emoji);
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? { ...item, reactions: previous } : item) }));
+        return 'リアクションを更新できませんでした。通信状態を確認してください。';
+      }
+    },
+    setMessagePinned: async (eventId, messageId, pinned) => {
+      const target = events.find((event) => event.id === eventId);
+      const message = target?.messages.find((item) => item.id === messageId);
+      if (!target || !message || message.deletedAt) return 'メッセージが見つかりません。';
+      if (!isEventManager(target, user?.id, profile.name)) return '主催者・共同主催者だけがピン留めできます。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
+      const previous = { pinnedAt: message.pinnedAt, pinnedBy: message.pinnedBy };
+      const pinnedAt = pinned ? new Date().toISOString() : undefined;
+      setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? { ...item, pinnedAt, pinnedBy: pinned ? user?.id : undefined } : item) }));
+      try {
+        const cloudPinnedAt = await setCloudMessagePinned(messageId, pinned);
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? { ...item, pinnedAt: cloudPinnedAt, pinnedBy: pinned ? user?.id : undefined } : item) }));
+        return null;
+      } catch {
+        setEvents((current) => current.map((event) => event.id !== eventId ? event : { ...event, messages: event.messages.map((item) => item.id === messageId ? { ...item, ...previous } : item) }));
+        return 'ピン留めを更新できませんでした。通信状態を確認してください。';
+      }
+    },
     updateEventDateTime: (eventId, input) => {
       const target = events.find((event) => event.id === eventId);
       if (!target || isEventArchived(target)) return;
@@ -913,6 +1299,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         ...normalizedInput,
         dateLabel: formatDateLabel(normalizedInput.startDate, normalizedInput.endDate),
         timeLabel: formatEventTimeLabel(normalizedInput.startTime, normalizedInput.endTime, normalizedInput.timeMode),
+        dateStatus: 'scheduled',
       }));
       void syncCloudDateTime(eventId, normalizedInput);
     },
@@ -927,6 +1314,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const targetEvent = events.find((event) => event.id === eventId);
       if (!targetEvent || !isEventManager(targetEvent, user?.id, profile.name)) return '主催者・共同主催者のみ追加できます。';
       if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      if (targetEvent.dateStatus === 'undecided') return '日時を設定してからタイムフローを追加してください。';
       setEvents((current) => current.map((event) => event.id === eventId
         ? { ...event, schedule: [...event.schedule, { ...input, id: scheduleId }] }
         : event));
@@ -944,6 +1332,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       const targetEvent = events.find((event) => event.id === eventId);
       if (!targetEvent || !isEventManager(targetEvent, user?.id, profile.name)) return '主催者・共同主催者のみ編集できます。';
       if (isEventArchived(targetEvent)) return 'アーカイブ済みのイベントは変更できません。';
+      if (targetEvent.dateStatus === 'undecided') return '日時を設定してからタイムフローを編集してください。';
       const previous = targetEvent.schedule.find((item) => item.id === scheduleId);
       if (!previous) return '予定が見つかりません。';
       setEvents((current) => current.map((event) => event.id !== eventId ? event : {
@@ -1114,6 +1503,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         accentColor: '#A8442F',
         coverImageUri: input.coverImage?.uri,
         status: '予定',
+        dateStatus: 'scheduled',
         inviteCode: supabase ? '' : Math.random().toString(36).slice(2, 8).toUpperCase(),
         capacity: 10000,
         participants: [
@@ -1153,7 +1543,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       }).catch(() => undefined);
       return event;
     },
-  }), [blockedUsers, consentHistory, dataStorage, events, isConfigured, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
+  }), [authenticatedUserEmail, blockedUsers, consentHistory, dataStorage, events, groups, isConfigured, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 }

@@ -1,4 +1,8 @@
-import { EventItem } from '@/types/event';
+import { supabase } from '@/lib/supabase';
+import { EventItem, NotificationPreferences } from '@/types/event';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Crypto from 'expo-crypto';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -7,6 +11,7 @@ const IDENTIFIER_PREFIX = 'tsudowa-';
 const LEGACY_IDENTIFIER_PREFIX = ['do', 'eventer-'].join('-');
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
+const INSTALLATION_ID_KEY = '@tsudowa/push-installation-id';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -20,8 +25,8 @@ Notifications.setNotificationHandler({
 async function prepareAndroidChannel() {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: 'イベントのリマインダー',
-    description: 'イベント開始と集金期限をお知らせします',
+    name: 'TSUDOWAのお知らせ',
+    description: 'イベント、チャット、集金の更新をお知らせします',
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: '#285943',
@@ -37,6 +42,7 @@ export async function requestNotificationPermission() {
 }
 
 function eventStart(event: EventItem) {
+  if (event.dateStatus === 'undecided') return null;
   const value = new Date(`${event.startDate}T${event.startTime}:00`);
   return Number.isNaN(value.getTime()) ? null : value;
 }
@@ -96,7 +102,11 @@ async function scheduleCollectionReminder(event: EventItem, now: number) {
   return count;
 }
 
-export async function syncLocalReminders(events: EventItem[], enabled: boolean) {
+export async function syncLocalReminders(
+  events: EventItem[],
+  enabled: boolean,
+  preferences?: NotificationPreferences,
+) {
   await prepareAndroidChannel();
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(scheduled
@@ -112,8 +122,44 @@ export async function syncLocalReminders(events: EventItem[], enabled: boolean) 
   const now = Date.now();
   let count = 0;
   for (const event of events) {
-    if (await scheduleEventReminder(event, now)) count += 1;
-    count += await scheduleCollectionReminder(event, now);
+    if (event.notificationsMuted) continue;
+    if (preferences?.eventReminders !== false && await scheduleEventReminder(event, now)) count += 1;
+    if (preferences?.collectionReminders !== false) count += await scheduleCollectionReminder(event, now);
   }
   return count;
+}
+
+async function getInstallationId() {
+  const stored = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
+  if (stored) return stored;
+  const next = Crypto.randomUUID();
+  await AsyncStorage.setItem(INSTALLATION_ID_KEY, next);
+  return next;
+}
+
+export async function registerRemoteNotificationDevice() {
+  if (!supabase || Platform.OS === 'web') return false;
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== Notifications.PermissionStatus.GRANTED) return false;
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  if (!projectId) throw new Error('missing_eas_project_id');
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  const installationId = await getInstallationId();
+  const { error } = await supabase.rpc('register_push_device', {
+    push_token: token,
+    device_installation_id: installationId,
+    device_platform: Platform.OS,
+  });
+  if (error) throw error;
+  return true;
+}
+
+export async function unregisterRemoteNotificationDevice() {
+  if (!supabase || Platform.OS === 'web') return;
+  const installationId = await AsyncStorage.getItem(INSTALLATION_ID_KEY);
+  if (!installationId) return;
+  const { error } = await supabase.rpc('unregister_push_device', {
+    device_installation_id: installationId,
+  });
+  if (error) throw error;
 }

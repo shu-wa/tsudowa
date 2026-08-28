@@ -5,6 +5,20 @@ const root = path.resolve('.');
 const failures = [];
 const passes = [];
 
+// `.env` contains commit-safe placeholders while `.env.local` contains the
+// local public production metadata. Keep explicitly supplied CI/EAS values,
+// but let valid local values replace placeholders during developer checks.
+const localEnvPath = path.join(root, '.env.local');
+if (fs.existsSync(localEnvPath)) {
+  for (const line of fs.readFileSync(localEnvPath, 'utf8').split(/\r?\n/)) {
+    const match = /^([^#=]+)=(.*)$/.exec(line);
+    if (!match) continue;
+    const name = match[1].trim();
+    const value = match[2].trim().replace(/^['"]|['"]$/g, '');
+    if (!process.env[name] || /YOUR_|正式名称|example\.com/i.test(process.env[name])) process.env[name] = value;
+  }
+}
+
 function fail(message) { failures.push(message); }
 function pass(message) { passes.push(message); }
 function read(relativePath) { return fs.readFileSync(path.join(root, relativePath), 'utf8'); }
@@ -73,6 +87,12 @@ if (
 } else {
   fail('App Storeの手動公開、16+、チャット、ユーザー生成コンテンツ申告を確認してください');
 }
+const storeDescription = storeConfig.apple?.info?.ja?.description ?? '';
+if (/主催者による集金項目と支払状態の管理/.test(storeDescription) && !/共同主催者による支払状態/.test(storeDescription)) {
+  pass('App Store説明の集金権限が主催者限定であることを確認');
+} else {
+  fail('App Store説明の集金権限を現行仕様の主催者限定へ更新してください');
+}
 if (appConfig.ios?.infoPlist?.ITSAppUsesNonExemptEncryption === false) pass('iOS暗号化申告設定を確認');
 else fail('ITSAppUsesNonExemptEncryption の設定を確認してください');
 const imagePickerPlugin = appConfig.plugins?.find(
@@ -114,6 +134,13 @@ function packageJsonVersion() {
   'supabase/migrations/202607260007_preserve_attendance_on_rejoin.sql',
   'supabase/migrations/202607310001_security_hardening.sql',
   'supabase/migrations/202608010001_content_moderation.sql',
+  'supabase/migrations/202608270001_chat_foundation.sql',
+  'supabase/migrations/202608280001_recurring_event_groups.sql',
+  'supabase/migrations/202608280002_push_notification_foundation.sql',
+  'supabase/migrations/202608280003_notification_dispatch_schedule.sql',
+  'supabase/migrations/202608280004_restrict_internal_event_trigger.sql',
+  'supabase/functions/dispatch-notifications/index.ts',
+  'PUSH_NOTIFICATIONS_OPERATIONS_JA.md',
   'MODERATION_OPERATIONS_JA.md',
   'store.config.json',
   'store-assets/google-play/icon-512.png',
@@ -162,12 +189,71 @@ const userFacingSource = [
   'components',
   'constants',
 ].flatMap((directory) => walk(path.join(root, directory)));
-const forbiddenCopy = /(公開版では|TSUDOWA運営|人オンライン|サンプルデータ|ダミーデータ|ハッシュで保存)/;
+const forbiddenCopy = /(公開版では|TSUDOWA運営|[0-9０-９]+人オンライン|サンプルデータ|ダミーデータ|ハッシュで保存)/;
 for (const file of userFacingSource) {
   const content = fs.readFileSync(file, 'utf8');
   if (forbiddenCopy.test(content)) fail(`未完成または開発者向け文言を検出: ${path.relative(root, file)}`);
 }
 if (!failures.some((item) => item.includes('未完成または開発者向け文言'))) pass('利用者画面の未完成文言を確認');
+
+const chatMigration = read('supabase/migrations/202608270001_chat_foundation.sql');
+if (
+  /message_reactions_read_members/.test(chatMigration)
+  && /private\.is_event_member\(private\.realtime_chat_event_id/.test(chatMigration)
+  && /send_event_message_v2/.test(chatMigration)
+  && /delete_window_expired/.test(chatMigration)
+) {
+  pass('強化チャットのRLS、private Realtime、送信取消制限を確認');
+} else {
+  fail('強化チャットのDB権限または送信取消制限が不足しています');
+}
+
+const groupsMigration = read('supabase/migrations/202608280001_recurring_event_groups.sql');
+if (
+  /create table(?: if not exists)? public\.event_groups/.test(groupsMigration)
+  && /create table(?: if not exists)? public\.event_group_members/.test(groupsMigration)
+  && /create or replace function public\.create_group_from_event/.test(groupsMigration)
+  && /create or replace function public\.create_group_event/.test(groupsMigration)
+  && /revoke all on public\.event_groups, public\.event_group_members from public, anon, authenticated/.test(groupsMigration)
+) {
+  pass('継続グループのDB、権限、作成RPCを確認');
+} else {
+  fail('継続グループのDB構造または権限制御が不足しています');
+}
+
+const notificationsMigration = read('supabase/migrations/202608280002_push_notification_foundation.sql');
+const notificationDispatcher = read('supabase/functions/dispatch-notifications/index.ts');
+if (
+  /create table(?: if not exists)? public\.notification_preferences/.test(notificationsMigration)
+  && /create table(?: if not exists)? public\.push_devices/.test(notificationsMigration)
+  && /create table(?: if not exists)? public\.notification_outbox/.test(notificationsMigration)
+  && /alter table public\.notification_outbox enable row level security/.test(notificationsMigration)
+  && /revoke all on public\.notification_outbox from public, anon, authenticated/.test(notificationsMigration)
+  && !/grant select on public\.push_devices to authenticated/.test(notificationsMigration)
+  && /push_token_in_use/.test(notificationsMigration)
+  && /notify_group_event_created/.test(notificationsMigration)
+  && /claim_notification_outbox/.test(notificationsMigration)
+  && /for update skip locked/.test(notificationsMigration)
+  && /group_update/.test(notificationDispatcher)
+  && /NOTIFICATION_DISPATCH_SECRET/.test(notificationDispatcher)
+  && /https:\/\/exp\.host\/--\/api\/v2\/push\/send/.test(notificationDispatcher)
+  && /data:\s*\{\s*url:\s*row\.route/.test(notificationDispatcher)
+) {
+  pass('通知設定、端末登録、配信キュー、共有シークレットを確認');
+} else {
+  fail('プッシュ通知のDB権限または安全な配信処理が不足しています');
+}
+
+if (
+  /Expo Push Service/.test(privacyCopy)
+  && /Apple Push Notification service/.test(privacyCopy)
+  && /Google Firebase Cloud Messaging/.test(privacyCopy)
+  && /通知設定/.test(privacyCopy)
+) {
+  pass('プッシュ通知に関するプライバシー説明を確認');
+} else {
+  fail('プッシュ通知の外部送信先、目的、設定方法に関する説明が不足しています');
+}
 
 const legacyBrandPattern = new RegExp('do' + '[ _-]?' + 'eventer', 'i');
 const legacyBrandFiles = [

@@ -26,7 +26,8 @@
 4. `202608280003_notification_dispatch_schedule.sql`をDBへ反映
 5. Edge Functionをデプロイ
 6. iOS APNsとAndroid FCM V1のEAS資格情報を確認
-7. 新しい実機ビルドで通知権限、受信、タップ遷移を試験
+7. Androidアプリ登録用`google-services.json`をEASのFile変数`GOOGLE_SERVICES_JSON`へ設定
+8. 新しい実機ビルドで通知権限、受信、タップ遷移を試験
 
 ## 3. 必須シークレット
 
@@ -56,7 +57,10 @@ HTTP要求本文は信頼情報として使わず、Edge Functionはサービス
 ## 6. 端末資格情報
 
 - iOS: EASのAPNs Push Keyがproduction projectに関連付いていること
-- Android: Google Play用Firebase projectのFCM V1 service account keyがEAS projectに設定されていること
+- Android: Firebase projectにAndroidアプリ`com.shuwa.tsudowa`を登録すること
+- Android: FirebaseのFCM V1 service account keyをEAS Credentialsへ設定すること
+- Android: アプリ登録用`google-services.json`をEAS productionのSecret File変数`GOOGLE_SERVICES_JSON`へ設定すること。FCM V1 service account keyとは別ファイルである
+- `google-services.json`とservice account JSONはリポジトリへcommitしない。本プロジェクトの`app.config.js`はEASのFile変数の一時パスを`android.googleServicesFile`へ渡す
 - Expo GoではAndroidのremote pushを試験しない。SDK 54ではdevelopment buildまたはrelease buildが必要
 
 ## 7. 受入試験

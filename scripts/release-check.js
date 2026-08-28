@@ -139,6 +139,7 @@ function packageJsonVersion() {
   'supabase/migrations/202608280002_push_notification_foundation.sql',
   'supabase/migrations/202608280003_notification_dispatch_schedule.sql',
   'supabase/migrations/202608280004_restrict_internal_event_trigger.sql',
+  'supabase/migrations/202608280005_fix_group_creation_ambiguity.sql',
   'supabase/functions/dispatch-notifications/index.ts',
   'PUSH_NOTIFICATIONS_OPERATIONS_JA.md',
   'MODERATION_OPERATIONS_JA.md',
@@ -164,6 +165,11 @@ if (/GOOGLE_MAPS_API_KEY/.test(dynamicAppConfig) && /googleMaps:\s*\{\s*apiKey/.
   pass('AndroidビルドへGoogle Maps APIキーを渡す設定を確認');
 } else {
   fail('AndroidビルドへGoogle Maps APIキーを渡す設定が不足しています');
+}
+if (/GOOGLE_SERVICES_JSON/.test(dynamicAppConfig) && /googleServicesFile/.test(dynamicAppConfig)) {
+  pass('AndroidビルドへFirebase設定ファイルを安全に渡す設定を確認');
+} else {
+  fail('AndroidビルドへFirebase設定ファイルを渡す設定が不足しています');
 }
 
 const deleteAccountSource = read('supabase/functions/delete-account/index.ts');

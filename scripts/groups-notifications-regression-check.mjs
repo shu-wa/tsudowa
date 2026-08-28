@@ -13,6 +13,7 @@ const eventCard = read('components/event-card.tsx');
 const notifications = read('lib/notifications.native.ts');
 const observer = read('components/notification-observer.native.tsx');
 const groupMigration = read('supabase/migrations/202608280001_recurring_event_groups.sql');
+const groupFixMigration = read('supabase/migrations/202608280005_fix_group_creation_ambiguity.sql');
 const notificationMigration = read('supabase/migrations/202608280002_push_notification_foundation.sql');
 const notificationScheduleMigration = read('supabase/migrations/202608280003_notification_dispatch_schedule.sql');
 const dispatcher = read('supabase/functions/dispatch-notifications/index.ts');
@@ -34,6 +35,9 @@ assert(groupMigration.includes("if source_event.archived_at is not null then rai
 assert(groupMigration.includes("if source_end >= now() then raise exception 'event_not_finished'"), 'Active events must not be groupified.');
 assert(groupMigration.includes("date_status = 'scheduled'"), 'Confirming a date candidate must clear the undecided state.');
 assert(groupMigration.includes("set_config('tsudowa.suppress_notifications', 'on'"), 'Bulk member copying must suppress notification storms.');
+assert(groupFixMigration.includes("execute 'update public.events set group_id = $1 where id = $2'"), 'Group creation must avoid output-column ambiguity.');
+assert(groupFixMigration.includes('on conflict on constraint event_group_members_pkey'), 'Group member upsert must avoid the group_id output variable.');
+assert(groupFixMigration.includes('on conflict on constraint event_members_pkey'), 'Event member upsert must avoid the event_id output variable.');
 
 for (const notificationKind of [
   'chat_message',

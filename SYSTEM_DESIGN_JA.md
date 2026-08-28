@@ -23,7 +23,7 @@ Bundle ID / Android package: `com.shuwa.tsudowa`
 
 過去の文書には、現在の実装と異なる「終了24時間後の自動アーカイブ」「共同主催者による集金編集」などの記述が残る場合がある。現行仕様は、終了後の手動アーカイブ、集金管理は主催者限定である。
 
-`202608270001_chat_foundation.sql`は2026-08-27にdry-runとlinked DB lintを通過後、本番Supabaseへ適用済みである。適用後のdry-runは「Remote database is up to date」、schema lintは0件、`export-account` Edge Functionはversion 6 / ACTIVE / JWT検証有効であることを確認した。
+`202608270001_chat_foundation.sql`から`202608280005_fix_group_creation_ambiguity.sql`まで本番Supabaseへ適用済みである。適用後のdry-runは「Remote database is up to date」。`delete-account`と`export-account`はversion 8 / ACTIVE、`dispatch-notifications`はversion 1 / ACTIVEである。通知の即時DB trigger、1分cron、Vault共有シークレットを本番で確認済みである。
 
 ## 2. 製品定義
 
@@ -875,6 +875,8 @@ A=主催者、B=共同主催者/参加者、C=未参加者で確認する。
 - プロフィール・イベント写真
 - 端末カレンダー、ローカルリマインダー
 - 過去予定、手動・不変アーカイブ、思い出カレンダー
+- 終了イベントからの継続グループ化、日時未定の次回イベント、同一メンバーでのイベント追加
+- 種類別・イベント別通知設定、通知outbox、即時配信要求、再試行cron
 - データ書き出し、アカウント削除
 - RLS、private Storage、rate limit、moderation基盤
 - iOS／Android production buildとApp Store/Play向け設定
@@ -883,11 +885,11 @@ A=主催者、B=共同主催者/参加者、C=未参加者で確認する。
 
 ### 27.1 リリース前に修正または判断が必要
 
-1. iOS 26.5.2時間spinnerの文字色修正はソースに入っているが、影響端末が使うbuild 8には未収録。新しいTestFlight buildで確認する。
+1. 最新ストア成果物はiOS build 11 / Android build 8で、今回のcommitを未収録。APNs/FCM設定後にiOS build 12 / Android build 9以降を作り、iOS 26.5.2時間spinnerを含めて実機確認する。
 2. イベント詳細から日時・場所編集への導線が全参加者に表示され、Contextもクライアント側manager検証をしていない。DB RLSは不正更新を拒否するが、一時的に端末表示だけ変わる可能性がある。UIとContextにもmanager check、await、rollbackを追加する。
-3. プッシュ通知の実装は完了しているが、本番DB migration、Edge Function、Database Webhook、APNs/FCM資格情報、新しい実機buildでの受信試験は未実施。
+3. プッシュ通知のDB migration、Edge Function、即時trigger、cron、共有シークレットは本番反映済み。iOS APNs Push Key、Android FCM V1 service account key、`google-services.json`、新しい実機buildでの受信試験が残る。
 4. 自動RLS統合テスト、負荷試験、バックアップ復元試験、第三者脆弱性診断は運用上まだ必要。
-5. 本番SupabaseのResumeと`202608270001_chat_foundation.sql`適用は完了。匿名API拒否試験に加え、構造・権限30件と主催者／参加者／部外者の行動24件、合計pgTAP 54件が本番linked DBで合格。すべてrollback済み。複数実機でのPresence/Broadcast、画像送受信、表示同期だけは端末試験が必要。
+5. 空の隔離DBへ全migrationを適用し、チャット・プロフィールID・継続グループ・通知のpgTAP 77件が合格、schema lintは0件。本番匿名API拒否と2アカウント結合試験も合格。グループ化RPCは本番で作成・参加者表示まで確認し、試験データは削除済み。複数実機でのPresence/Broadcast、画像送受信、通知受信だけは端末試験が必要。
 6. Realtime Settingsでpublic channelを無効化し、private channel強制後もチャットPresence/Broadcastが参加者だけに届くことを実機確認する。
 
 ### 27.2 将来拡張

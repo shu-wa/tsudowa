@@ -217,10 +217,11 @@ export async function fetchCloudEvents(currentUserId: string): Promise<EventItem
 }
 
 export async function createCloudEvent(event: EventItem) {
-  if (!supabase || !isCloudId(event.id)) return null;
-  const { data: userData } = await supabase.auth.getUser();
+  if (!supabase) throw new Error('cloud_not_configured');
+  if (!isCloudId(event.id)) throw new Error('invalid_event_id');
+  const { data: userData, error: authError } = await supabase.auth.getUser();
   const userId = userData.user?.id;
-  if (!userId) return null;
+  if (authError || !userId) throw new Error('not_authenticated');
   const { error } = await supabase.from('events').insert({
     id: event.id, owner_id: userId, title: event.title, category: event.category, tagline: event.tagline,
     description: event.description, start_date: event.startDate, end_date: event.endDate, start_time: event.startTime,
@@ -230,8 +231,12 @@ export async function createCloudEvent(event: EventItem) {
   });
   if (error) throw error;
   const { data: inviteCode, error: inviteError } = await supabase.rpc('create_event_invite', { target_event_id: event.id });
-  if (inviteError) throw inviteError;
-  return inviteCode as string;
+  return {
+    inviteCode: inviteError ? '' : String(inviteCode ?? ''),
+    inviteWarning: inviteError
+      ? 'イベントは保存されましたが、招待コードを作成できませんでした。詳細画面からもう一度お試しください。'
+      : undefined,
+  };
 }
 
 export async function createCloudInvite(eventId: string) {

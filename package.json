@@ -28,10 +28,11 @@
     "check:collections": "node scripts/collection-regression-check.mjs",
     "check:chat": "node scripts/chat-regression-check.mjs",
     "check:groups-notifications": "node scripts/groups-notifications-regression-check.mjs",
+    "check:event-creation": "node scripts/event-creation-regression-check.mjs",
     "check:remote": "node --env-file=.env.local scripts/remote-security-smoke.mjs",
     "export:web": "expo export --platform web",
     "release:check": "node --env-file=.env ./scripts/release-check.js",
-    "release:verify": "pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:auth-flow && pnpm check:profile-handle && pnpm check:collections && pnpm check:chat && pnpm check:groups-notifications && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
+    "release:verify": "pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:auth-flow && pnpm check:profile-handle && pnpm check:collections && pnpm check:chat && pnpm check:groups-notifications && pnpm check:event-creation && pnpm typecheck && pnpm lint && pnpm export:web && pnpm release:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

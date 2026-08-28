@@ -290,6 +290,10 @@ export type NewEventInput = {
   coverImage?: ChatImageInput;
 };
 
+export type EventCreationResult =
+  | { event: EventItem; warning?: string; error?: never }
+  | { event?: never; warning?: never; error: string };
+
 export type NewCollectionInput = {
   title: string;
   category: CollectionCategory;

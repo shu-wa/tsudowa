@@ -12,6 +12,7 @@ import { isEventHost, isEventManager } from '@/lib/event-permissions';
 import { hasStoredOnboardingEvidence, isKnownProfileName } from '@/lib/onboarding-state';
 import { normalizeProfileHandle, profileSaveErrorMessage } from '@/lib/profile-handle';
 import { formatEventTimeLabel } from '@/lib/time-values';
+import { eventCreationErrorMessage } from '@/lib/event-creation-errors';
 import { useAuth } from '@/context/auth-context';
 import {
   AppSettings,
@@ -24,6 +25,7 @@ import {
   CollectionItem,
   ConsentRecord,
   EventDateTimeInput,
+  EventCreationResult,
   EventGroup,
   EventInvitePreview,
   EventItem,
@@ -74,7 +76,7 @@ type EventContextValue = {
   consentHistory: ConsentRecord[];
   blockedUsers: BlockedUser[];
   isHydrated: boolean;
-  addEvent: (input: NewEventInput) => EventItem;
+  addEvent: (input: NewEventInput) => Promise<EventCreationResult>;
   addCollection: (eventId: string, input: NewCollectionInput) => Promise<string | null>;
   updateCollection: (eventId: string, collectionId: string, input: NewCollectionInput) => Promise<string | null>;
   deleteCollection: (eventId: string, collectionId: string) => Promise<string | null>;
@@ -1477,7 +1479,7 @@ export function EventProvider({ children }: PropsWithChildren) {
         return '支払状態を更新できませんでした。通信状態と権限を確認してください。';
       }
     },
-    addEvent: (input) => {
+    addEvent: async (input) => {
       const id = Crypto.randomUUID();
       const normalizedDates = normalizeEventDateRange(input.startDate, input.endDate);
       const safeInput = { ...input, ...normalizedDates };
@@ -1529,19 +1531,57 @@ export function EventProvider({ children }: PropsWithChildren) {
         }] : [],
         messages: [],
       };
-      setEvents((current) => [event, ...current]);
-      void createCloudEvent(event).then(async (inviteCode) => {
-        if (inviteCode) setEvents((current) => current.map((item) => item.id === event.id ? { ...item, inviteCode } : item));
-        await Promise.all([
+      if (!supabase) {
+        setEvents((current) => [event, ...current]);
+        return { event };
+      }
+
+      try {
+        const creation = await createCloudEvent(event);
+        let savedEvent: EventItem = { ...event, inviteCode: creation.inviteCode };
+        setEvents((current) => [savedEvent, ...current.filter((item) => item.id !== event.id)]);
+
+        const relatedWrites = [
           ...event.collections.map((collection) => syncCloudCollection(event.id, collection)),
           ...event.schedule.map((schedule) => syncCloudSchedule(event, schedule.id, schedule)),
-        ]);
+        ];
+        const relatedResults = await Promise.allSettled(relatedWrites);
+        const relatedWriteFailed = relatedResults.some((result) => result.status === 'rejected');
+        let coverWriteFailed = false;
         if (input.coverImage) {
-          const coverImagePath = await syncCloudEventCover(event.id, input.coverImage);
-          setEvents((current) => current.map((item) => item.id === event.id ? { ...item, coverImagePath, coverImageUri: input.coverImage?.uri } : item));
+          try {
+            const coverImagePath = await syncCloudEventCover(event.id, input.coverImage);
+            savedEvent = { ...savedEvent, coverImagePath, coverImageUri: input.coverImage.uri };
+            setEvents((current) => current.map((item) => item.id === event.id ? savedEvent : item));
+          } catch {
+            coverWriteFailed = true;
+          }
         }
-      }).catch(() => undefined);
-      return event;
+
+        try {
+          if (user) {
+            const cloudEvents = await fetchCloudEvents(user.id);
+            const refreshedEvents = cloudEvents.map((item) => item.id === event.id
+              ? { ...item, inviteCode: creation.inviteCode || item.inviteCode, coverImageUri: savedEvent.coverImageUri ?? item.coverImageUri }
+              : item);
+            setEvents(refreshedEvents);
+            savedEvent = refreshedEvents.find((item) => item.id === event.id) ?? savedEvent;
+          }
+        } catch {
+          // The committed event remains visible locally when a follow-up refresh is temporarily unavailable.
+        }
+
+        const warnings = [
+          creation.inviteWarning,
+          relatedWriteFailed || coverWriteFailed
+            ? 'イベント本体は保存されましたが、参加費・タイムフロー・写真の一部を保存できませんでした。詳細画面で内容を確認してください。'
+            : undefined,
+        ].filter((warning): warning is string => Boolean(warning));
+        return { event: savedEvent, warning: warnings.length ? warnings.join('\n\n') : undefined };
+      } catch (error) {
+        setEvents((current) => current.filter((item) => item.id !== event.id));
+        return { error: eventCreationErrorMessage(error) };
+      }
     },
   }), [authenticatedUserEmail, blockedUsers, consentHistory, dataStorage, events, groups, isConfigured, isHydrated, legacyStorageKey, profile, reports, settings, storageKey, user]);
 

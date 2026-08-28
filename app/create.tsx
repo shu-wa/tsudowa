@@ -37,6 +37,7 @@ export default function CreateEventScreen() {
   const [description, setDescription] = useState('');
   const [initialFee, setInitialFee] = useState('');
   const [coverImage, setCoverImage] = useState<ChatImageInput>();
+  const [submitting, setSubmitting] = useState(false);
   const mapSelectionHint = Platform.OS === 'web'
     ? '場所名の直接入力、現在地、地図プレビューに対応'
     : '施設名・住所検索、現在地、地図タップに対応';
@@ -44,7 +45,8 @@ export default function CreateEventScreen() {
     ? '場所名を入力するか、現在地を選択'
     : '検索・現在地・地図タップで場所を選択';
 
-  const submit = () => {
+  const submit = async () => {
+    if (submitting) return;
     if (!title.trim()) {
       Alert.alert('イベント名を入力してください');
       return;
@@ -53,9 +55,27 @@ export default function CreateEventScreen() {
       Alert.alert('終了時刻を確認してください', '同じ日の場合、終了時刻は開始時刻より後にしてください。');
       return;
     }
-    const event = addEvent({ title: title.trim(), startDate, endDate, startTime, endTime, timeMode, location, address, latitude: hasSelectedCoordinates ? latitude : undefined, longitude: hasSelectedCoordinates ? longitude : undefined, description, initialFee: Number(initialFee) || 0, coverImage });
-    router.dismiss();
-    setTimeout(() => router.push(`/event/${event.id}`), 0);
+    setSubmitting(true);
+    try {
+      const result = await addEvent({ title: title.trim(), startDate, endDate, startTime, endTime, timeMode, location, address, latitude: hasSelectedCoordinates ? latitude : undefined, longitude: hasSelectedCoordinates ? longitude : undefined, description, initialFee: Number(initialFee) || 0, coverImage });
+      if (result.error || !result.event) {
+        Alert.alert('イベントを作成できませんでした', result.error ?? '通信状態を確認して、もう一度お試しください。');
+        return;
+      }
+      const openCreatedEvent = () => {
+        router.dismiss();
+        setTimeout(() => router.push(`/event/${result.event.id}`), 0);
+      };
+      if (result.warning) {
+        Alert.alert('イベントを作成しました', result.warning, [{ text: '確認', onPress: openCreatedEvent }]);
+        return;
+      }
+      openCreatedEvent();
+    } catch {
+      Alert.alert('イベントを作成できませんでした', '予期しないエラーが発生しました。通信状態を確認して、もう一度お試しください。');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const pickCoverImage = async () => {
@@ -169,7 +189,7 @@ export default function CreateEventScreen() {
         </ScrollView>
         <View style={styles.bottom}>
           <KeyboardDismissBar />
-          <TouchableOpacity style={styles.submit} onPress={submit} activeOpacity={0.85}><Text style={styles.submitText}>イベントを作成する</Text><Ionicons name="arrow-forward" size={19} color={palette.surface} /></TouchableOpacity>
+          <TouchableOpacity style={[styles.submit, submitting && styles.submitDisabled]} onPress={submit} activeOpacity={0.85} disabled={submitting}>{submitting ? <ActivityIndicator size="small" color={palette.surface} /> : <><Text style={styles.submitText}>イベントを作成する</Text><Ionicons name="arrow-forward" size={19} color={palette.surface} /></>}</TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -204,5 +224,6 @@ const styles = StyleSheet.create({
   chipText: { color: palette.primary, fontSize: 13, fontWeight: '700', marginLeft: 4 },
   bottom: { backgroundColor: palette.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.line, padding: 14 },
   submit: { minHeight: 55, borderRadius: 8, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  submitDisabled: { opacity: 0.65 },
   submitText: { color: palette.surface, fontSize: 15, fontWeight: '800', marginRight: 9 },
 });

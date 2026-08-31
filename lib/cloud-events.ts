@@ -68,17 +68,29 @@ const dateLabel = (start: string, end: string) => {
 
 export async function fetchCloudEvents(currentUserId: string): Promise<EventItem[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.from('events').select(`
+  const fullResult = await supabase.from('events').select(`
     *,
-    members:event_members(*, profile:profiles(id, display_name, avatar_color, avatar_path)),
+    members:event_members(*, profile:profiles!event_members_user_id_fkey(id, display_name, avatar_color, avatar_path)),
     schedule:schedule_items(*),
     collections(*, shares:collection_shares(*)),
-    messages(*, author:profiles(id, display_name, avatar_color), reactions:message_reactions(user_id, emoji)),
+    messages(*, author:profiles!messages_author_id_fkey(id, display_name, avatar_color), reactions:message_reactions(user_id, emoji)),
     date_candidates(*, votes:date_candidate_votes(*)),
     leave_requests:event_leave_requests(*, profile:profiles!event_leave_requests_user_id_fkey(id, display_name, avatar_color, avatar_path))
   `).order('start_date', { ascending: true });
-  if (error) throw error;
-  const cloudEvents = (data ?? []) as CloudEvent[];
+  let cloudEvents: CloudEvent[];
+  if (fullResult.error) {
+    // Optional features must never make the user's event list disappear. A
+    // minimal retry still restores every visible event and its membership;
+    // the next refresh can fill in the related details once they recover.
+    const coreResult = await supabase.from('events').select(`
+      *,
+      members:event_members(*, profile:profiles!event_members_user_id_fkey(id, display_name, avatar_color, avatar_path))
+    `).order('start_date', { ascending: true });
+    if (coreResult.error) throw coreResult.error;
+    cloudEvents = (coreResult.data ?? []) as CloudEvent[];
+  } else {
+    cloudEvents = (fullResult.data ?? []) as CloudEvent[];
+  }
   const { data: mutedRows } = await supabase.from('event_notification_preferences')
     .select('event_id')
     .eq('user_id', currentUserId)
@@ -257,7 +269,7 @@ export async function fetchCloudGroups(): Promise<EventGroup[]> {
   if (!supabase) return [];
   const { data, error } = await supabase.from('event_groups').select(`
     *,
-    members:event_group_members(*, profile:profiles(id, display_name, avatar_color, avatar_path))
+    members:event_group_members(*, profile:profiles!event_group_members_user_id_fkey(id, display_name, avatar_color, avatar_path))
   `).order('updated_at', { ascending: false });
   if (error) {
     if (error.code === '42P01' || error.code === 'PGRST205') return [];

@@ -418,18 +418,20 @@ export function EventProvider({ children }: PropsWithChildren) {
   }, [isConfigured, isHydrated, settings.notificationPreferences, settings.notificationsEnabled, user]);
 
   useEffect(() => {
-    if (!isConfigured || !isHydrated || !settings.onboardingCompleted || !user) return;
+    if (!isConfigured || !isHydrated || !authenticatedUserId) return;
     let active = true;
-    const refresh = () => Promise.all([fetchCloudEvents(user.id), fetchCloudGroups()])
-      .then(([cloudEvents, cloudGroups]) => {
-        if (!active) return;
-        setEvents(cloudEvents);
-        setGroups(cloudGroups);
-      })
-      .catch(() => undefined);
+    const refresh = async () => {
+      const [eventResult, groupResult] = await Promise.allSettled([
+        fetchCloudEvents(authenticatedUserId),
+        fetchCloudGroups(),
+      ]);
+      if (!active) return;
+      if (eventResult.status === 'fulfilled') setEvents(eventResult.value);
+      if (groupResult.status === 'fulfilled') setGroups(groupResult.value);
+    };
     void refresh();
     const client = supabase;
-    const channel = client?.channel(`tsudowa-${user.id}`)
+    const channel = client?.channel(`tsudowa-${authenticatedUserId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_members' }, refresh)
@@ -445,7 +447,7 @@ export function EventProvider({ children }: PropsWithChildren) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'event_notification_preferences' }, refresh)
       .subscribe();
     return () => { active = false; if (client && channel) void client.removeChannel(channel); };
-  }, [isConfigured, isHydrated, settings.onboardingCompleted, user]);
+  }, [authenticatedUserId, isConfigured, isHydrated]);
 
   useEffect(() => {
     if (!isConfigured || !isHydrated || !settings.onboardingCompleted || !user) return;
@@ -496,24 +498,27 @@ export function EventProvider({ children }: PropsWithChildren) {
     isHydrated,
     refreshData: async () => {
       if (!isConfigured || !user) return null;
+      let cloudProfile: Awaited<ReturnType<typeof fetchCloudProfile>> = null;
       try {
-        let cloudProfile = await fetchCloudProfile(user.id);
+        cloudProfile = await fetchCloudProfile(user.id);
         const hasLocalProfile = profile.name.trim() && profile.name !== '新しいメンバー';
         if ((!cloudProfile || cloudProfile.name === '新しいメンバー') && hasLocalProfile) {
           await syncProfileToCloud(profile);
           cloudProfile = await fetchCloudProfile(user.id);
         }
-        const [cloudEvents, cloudGroups] = await Promise.all([
-          fetchCloudEvents(user.id),
-          fetchCloudGroups(),
-        ]);
-        setEvents(cloudEvents);
-        setGroups(cloudGroups);
         if (cloudProfile) setProfile((current) => ({ ...current, ...cloudProfile, email: user.email }));
-        return null;
       } catch {
-        return '情報を更新できませんでした。通信状態を確認してください。';
+        // Profile refresh is independent from event restoration.
       }
+      const [eventResult, groupResult] = await Promise.allSettled([
+        fetchCloudEvents(user.id),
+        fetchCloudGroups(),
+      ]);
+      if (eventResult.status === 'fulfilled') setEvents(eventResult.value);
+      if (groupResult.status === 'fulfilled') setGroups(groupResult.value);
+      return eventResult.status === 'rejected'
+        ? 'イベントを更新できませんでした。通信状態を確認してください。'
+        : null;
     },
     findEvent: (id) => events.find((event) => event.id === id),
     findGroup: (id) => groups.find((group) => group.id === id),

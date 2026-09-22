@@ -504,17 +504,16 @@ export async function syncCloudDateTime(eventId: string, input: EventDateTimeInp
     date_status: 'scheduled',
     status: 'scheduled',
   };
-  const { error } = await supabase.from('events').update(payload).eq('id', eventId);
-  if (!error) return;
-  if (error.code !== '42703' && error.code !== 'PGRST204') throw error;
-  const { error: fallbackError } = await supabase.from('events').update({
-    start_date: input.startDate,
-    end_date: input.endDate,
-    start_time: input.startTime,
-    end_time: input.timeMode === 'range' ? input.endTime : null,
-    time_mode: input.timeMode,
-  }).eq('id', eventId);
-  if (fallbackError) throw fallbackError;
+  // Request the updated row: RLS can otherwise turn a denied update into a
+  // successful response with zero affected rows. Do not silently drop fields.
+  const { error } = await supabase.from('events').update(payload).eq('id', eventId).select('id').single();
+  if (error) throw error;
+}
+
+export async function syncCloudEventDescription(eventId: string, description: string) {
+  if (!supabase || !isCloudId(eventId)) return;
+  const { error } = await supabase.from('events').update({ description }).eq('id', eventId).select('id').single();
+  if (error) throw error;
 }
 
 export async function syncCloudLocation(eventId: string, input: EventLocationInput) {

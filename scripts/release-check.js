@@ -119,7 +119,7 @@ function packageJsonVersion() {
   'assets/images/brand-icon-foreground.png',
   'assets/images/brand-icon-monochrome.png',
   'assets/images/brand-favicon.png',
-  'app.config.js',
+  'app.config.ts',
   'app/privacy.tsx',
   'app/terms.tsx',
   'app/community-guidelines.tsx',
@@ -160,7 +160,9 @@ if (
   fail('クライアントとDBの投稿安全対策が接続されていません');
 }
 
-const dynamicAppConfig = read('app.config.js');
+// Expo prefers app.config.ts when both dynamic config files exist.
+// check:build-config also verifies the resolved result, not just source text.
+const dynamicAppConfig = read('app.config.ts');
 if (/GOOGLE_MAPS_API_KEY/.test(dynamicAppConfig) && /googleMaps:\s*\{\s*apiKey/.test(dynamicAppConfig)) {
   pass('AndroidビルドへGoogle Maps APIキーを渡す設定を確認');
 } else {

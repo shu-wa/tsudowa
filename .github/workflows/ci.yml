@@ -44,6 +44,15 @@ jobs:
       - name: Check regressions
         run: pnpm check:dates && pnpm check:times && pnpm check:onboarding && pnpm check:storage && pnpm check:auth-redirect && pnpm check:auth-flow && pnpm check:profile-handle && pnpm check:collections && pnpm check:chat && pnpm check:groups-notifications && pnpm check:event-creation
 
+      - name: Check event retrieval regressions
+        run: pnpm check:event-fetch
+
+      - name: Check event editing regressions
+        run: pnpm check:event-edit && pnpm check:uri
+
+      - name: Check resolved Expo build configuration
+        run: pnpm check:build-config
+
       - name: Check Expo dependencies
         run: pnpm exec expo-doctor
 

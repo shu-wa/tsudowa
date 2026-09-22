@@ -2,6 +2,10 @@
 
 この文書は App Store Connect と Google Play Console へ転記するための申請原稿です。実際の申告では、申請時点の実装と各ストア画面の質問文を優先してください。
 
+最終更新: 2026-09-11。以下の8月の同期記録は履歴であり、この原稿の最新版がストアへ反映済みという意味ではありません。現状と残作業は `RELEASE_READINESS_2026-09-11_JA.md` を参照してください。
+
+実装/SDKとの照合根拠と未確定事項: `PRIVACY_DATA_INVENTORY_JA.md`。審査用アカウントと操作案内: `REVIEW_PREPARATION_JA.md`。公開前にプライバシーポリシー `2026-09-11.1` をアプリ・公開サイトへ反映する必要があります。
+
 ## App Store Connect同期記録（2026-08-01）
 
 - `store.config.json` をEAS公式スキーマで検証し、App Store Connectへ同期済み。
@@ -46,11 +50,12 @@ LINEなどで毎回グループを作ったり、初対面の参加者を友だ�
 - 地図検索と現在地を利用した場所設定
 - 複数日に対応したタイムフロー
 - 参加者一覧、参加・未定・不参加の回答
-- イベント参加者限定のチャットと写真共有
+- イベント参加者限定のチャット、写真共有、返信、リアクション、検索
 - 参加費、食事代、交通費、宿泊費など複数の集金記録
-- 主催者・共同主催者による支払状態の管理
+- 主催者による集金項目と支払状態の管理
 - 日程候補の作成と参加可否の投票
-- 端末カレンダーへの予定追加とリマインダー
+- 端末カレンダーへの予定追加と種類別の通知設定
+- 同じメンバーで次回イベントを続けられるグループ
 - 開催後のイベントを思い出として残すアーカイブ
 - 通報、ブロック、データ書き出し、アカウント削除
 
@@ -64,7 +69,7 @@ TSUDOWAは実際の送金や決済を行いません。現金、PayPayなど、�
 
 - プライマリ: ソーシャルネットワーキング
 - セカンダリ: ライフスタイル
-- 年齢設定: アプリ内の登録条件と一致するよう16+へ上書き
+- 年齢設定: アプリの利用条件は16歳以上。ストアの年齢質問へ実装どおり回答し、地域別の最終表示を確認する。Apple原稿では16+への上書きを設定済みだが、Googleの対象年齢・コンテンツレーティングとは別の設定。
 
 ## Google Play用原稿
 
@@ -78,9 +83,9 @@ TSUDOWAは、イベント単位で必要な情報とコミュニケーション�
 
 招待コードを入力すると、参加前にイベント名と日時を確認できます。参加後は、場所、参加者、タイムフロー、チャット、写真、集金状況をイベント内で共有できます。
 
-主催者は参加費、食事代、交通費、宿泊費などを複数登録でき、主催者・共同主催者だけが参加者ごとの支払状態を変更できます。TSUDOWA自体は送金や決済を行いません。
+主催者は参加費、食事代、交通費、宿泊費などを複数登録でき、主催者だけが集金項目と参加者ごとの支払状態を変更できます。TSUDOWA自体は送金や決済を行いません。
 
-日程候補への投票、端末カレンダーへの予定追加、リマインダー、イベント終了後のアーカイブにも対応しています。安全機能として、通報、ブロック、データ書き出し、アプリ内アカウント削除を備えています。
+チャットの返信・リアクション・検索、日程候補への投票、端末カレンダーへの予定追加、種類別の通知設定、イベント終了後のアーカイブにも対応しています。グループを作成すると、同じメンバーで次回のイベントを計画し、過去のイベントも振り返れます。安全機能として、通報、ブロック、データ書き出し、アプリ内アカウント削除を備えています。
 
 ## Apple App Privacy回答案
 
@@ -88,18 +93,21 @@ TSUDOWAは、イベント単位で必要な情報とコミュニケーション�
 
 | データ種別 | ユーザーに関連付け | 主な目的 | 備考 |
 | --- | --- | --- | --- |
-| Email Address | はい | App Functionality / Account Management | ログイン、本人確認、パスワード再設定 |
+| Email Address | はい | App Functionality | ログイン、本人確認、パスワード再設定 |
 | Name | はい | App Functionality | 表示名、表示ID |
 | User ID | はい | App Functionality | Supabase Authのアカウント識別子 |
+| Device ID | はい | App Functionality | 通知送信先を管理するインストール識別子・プッシュ通知トークン。広告追跡の有無とは別に収集を申告 |
 | Precise Location | はい（保存した場合） | App Functionality | 現在地・地図検索からイベント場所を設定した場合 |
-| Coarse Location | はい | App Functionality / Security | 任意の市区町村、イベント場所、サービス保護用ログから概算され得る位置 |
+| Coarse Location | はい（収集する場合） | App Functionality | 市区町村、SDK等による概算位置は下記の確認事項を参照 |
 | Photos or Videos | はい | App Functionality | プロフィール、イベントカバー、チャットへの任意投稿 |
-| Emails or Text Messages | はい | App Functionality / Safety | イベント参加者間のアプリ内チャット |
-| Other User Content | はい | App Functionality / Safety | イベント、予定、出欠、日程投票、通報内容 |
+| Emails or Text Messages | はい | App Functionality | イベント参加者間のアプリ内チャット |
+| Other User Content | はい | App Functionality | イベント、グループ、予定、出欠、日程投票、通報内容 |
 | Other Financial Info | はい | App Functionality | 費用・立替・支払状態のみ。カード・銀行・決済情報は取得しない |
-| Other Data Types | はい | App Functionality / Account Management / Safety | 生年月日、規約等への同意履歴、ブロック・モデレーション情報 |
+| Other Data Types | はい | App Functionality | 生年月日、規約等への同意履歴、ブロック・モデレーション情報 |
 
-取得しないもの: Contacts、Health、Fitness、Browsing History、Search History、Advertising Data、Purchases、Payment Info、Crash Data、Performance Data、Device IDを使った追跡。
+上表は申告候補であり、SDKを含む最終監査済み回答ではありません。広告追跡をしないこととDevice IDを収集しないことは別です。Maps等のSDKによる診断・利用情報も含めて最終回答してください。
+
+位置情報は、利用者自身の位置と任意のイベント会場を区別します。イベントの座標があるだけで常に利用者の現在地を収集しているとは判定しません。位置権限拒否時・現在地を保存しない場合の端末外送信、SDKの収集、ログの保持状況を確認し、Precise/Coarse Locationの収集・関連付け・目的を確定してください。
 
 ## Google Play Data safety回答案
 
@@ -121,6 +129,13 @@ TSUDOWAは、イベント単位で必要な情報とコミュニケーション�
 - Photos and videos: Photos
 - Messages: Other in-app messages
 - App activity: Other user-generated content / Other actions（日程投票、出欠回答）
+- Device or other IDs: 通知用インストール識別子、プッシュ通知トークン、Firebase Installation ID等（SDKを含めて確認）
+- App info and performance: Crash logs / Diagnostics（Android Maps SDKの診断情報を確認）
+- App activity: App interactions（Android Maps SDKの機能に応じた地図操作情報を確認）
+
+Android MapsのSDK情報は、アプリ機能だけでなく提供者による品質改善・分析目的も照合すること。Google MapsのAndroid向け項目を、そのSDKを使っていないiOSへそのまま転記しない。最新版SDKの開示資料と実配布ビルドの依存バージョンは別に確認する。
+
+通知をアプリ内で任意にしていても、Firebase SDKの初期化時に識別子が自動収集される可能性があります。したがってDevice or other IDsを一律に「任意」と決めず、配布ビルドの自動初期化設定・実際の送信とFirebase公式開示資料を照合して必須／任意を確定してください。取得目的は通知配信などのアプリ機能であり、広告追跡とは区別します。
 
 Supabase等、アプリ提供のためにデータを処理するサービス事業者の扱いは、Play Console上の「共有」の定義と例外説明を読んだうえで最終回答すること。
 
@@ -134,6 +149,8 @@ TSUDOWAはログインが必要なイベントコミュニケーションアプ�
 2. ホーム画面からサンプルイベントを開く
 3. 日時、場所、参加者、概要、タイムフロー、集金、チャットを確認
 4. マイページからプロフィール編集、プライバシーセンター、アカウント削除を確認
+5. サンプルグループで過去・今後のイベントとイベント追加を確認
+6. 通知設定を確認。通知を拒否しても基本機能を利用できることを確認
 
 補足:
 
@@ -147,6 +164,7 @@ TSUDOWAはログインが必要なイベントコミュニケーションアプ�
 ## 提出前に人の操作が必要な項目
 
 - AppleとGoogle用の専用審査アカウントを作成する。個人アカウントのパスワードは共有しない。
+- 審査用メールアドレスは名称だけではログインできない。アプリのAuthに実際に登録し、メール確認・プロフィール登録を完了する。審査時に運営者によるメール転送や追加承認が不要な状態で、ログアウトからのログインを確認する。認証情報は各ストアの非公開審査欄へ入力し、公開説明やGitへ記載しない。
 - 審査アカウントで確認できるサンプルイベントを作成する。
 - App Store Connectでアプリレコード、税務・契約、App Privacy、年齢区分、輸出コンプライアンスを入力する。
 - Google Play Consoleでアプリレコード、Data safety、App access、コンテンツレーティング、広告、対象年齢、削除URLを入力する。
@@ -161,3 +179,6 @@ TSUDOWAはログインが必要なイベントコミュニケーションアプ�
 - Google Play Data safety: https://support.google.com/googleplay/android-developer/answer/10787469
 - Google Playアカウント削除要件: https://support.google.com/googleplay/android-developer/answer/13327111
 - Google Playテスト設定: https://support.google.com/googleplay/android-developer/answer/9845334
+- Google Play個人アカウントのテスト要件: https://support.google.com/googleplay/android-developer/answer/14151465
+- Firebase SDKのデータ開示: https://firebase.google.com/docs/android/play-data-disclosure
+- Google Maps Android SDKのデータ開示: https://developers.google.com/maps/documentation/android-sdk/play-data-disclosure

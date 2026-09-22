@@ -151,6 +151,7 @@ export default function EventDetailScreen() {
           </View>
           <SectionTitle title="イベントについて" />
           <View style={styles.textCard}><Text style={styles.description}>{event.description || '説明はありません'}</Text></View>
+          {canManageEvent ? <TouchableOpacity accessibilityRole="button" style={styles.outlineButton} onPress={() => router.push(`/event/${event.id}/edit-description` as Href)}><Ionicons name="create-outline" size={19} color={palette.primary} /><Text style={styles.outlineText}>イベントについてを編集</Text></TouchableOpacity> : null}
           {!archived ? <><SectionTitle title="招待コード" /><TouchableOpacity style={styles.inviteCard} onPress={invite} activeOpacity={0.85}>
             <View style={styles.inviteCopy}><Text style={styles.inviteLabel}>タップして共有</Text><Text style={styles.inviteCode} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>{event.inviteCode || 'タップして発行'}</Text></View>
             <View style={styles.shareCircle}><Ionicons name="share-outline" size={21} color={palette.surface} /></View>

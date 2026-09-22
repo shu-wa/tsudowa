@@ -3,18 +3,30 @@ import { RefreshableScrollView as ScrollView } from '@/components/refreshable-sc
 import { TimeRangePicker } from '@/components/time-range-picker';
 import { palette } from '@/constants/theme';
 import { useEvents } from '@/context/event-context';
+import { useAuth } from '@/context/auth-context';
+import { isEventManager } from '@/lib/event-permissions';
+import { isEventArchived } from '@/lib/event-display';
 import { formatEventTimeLabel } from '@/lib/time-values';
-import { EventTimeMode } from '@/types/event';
+import { EventItem, EventTimeMode } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditEventDateScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { findEvent, updateEventDateTime } = useEvents();
+  const { findEvent } = useEvents();
   const event = findEvent(id);
+  if (!event) return <SafeAreaView style={styles.empty}><Text>イベントが見つかりません</Text></SafeAreaView>;
+  return <DateForm key={event.id} event={event} />;
+}
+
+function DateForm({ event }: { event: EventItem }) {
+  const { updateEventDateTime, profile } = useEvents();
+  const { user } = useAuth();
+  const savingRef = useRef(false);
+  const [saving, setSaving] = useState(false);
   const today = toDateString(new Date());
   const [startDate, setStartDate] = useState(event?.startDate || today);
   const [endDate, setEndDate] = useState(event?.endDate || event?.startDate || today);
@@ -22,11 +34,20 @@ export default function EditEventDateScreen() {
   const [endTime, setEndTime] = useState<string | undefined>(event?.endTime);
   const [timeMode, setTimeMode] = useState<EventTimeMode>(event?.timeMode || 'start');
 
-  if (!event) return <SafeAreaView style={styles.empty}><Text>イベントが見つかりません</Text></SafeAreaView>;
-  const save = () => {
+  const canEdit = isEventManager(event, user?.id, profile.name) && !isEventArchived(event);
+  const save = async () => {
+    if (savingRef.current || !canEdit) return;
     if (timeMode === 'range' && endTime && endDate === startDate && endTime <= startTime) return Alert.alert('終了時刻を確認してください', '同じ日の場合、終了時刻は開始時刻より後にしてください。');
-    updateEventDateTime(id, { startDate, endDate, startTime, endTime, timeMode });
-    router.back();
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const error = await updateEventDateTime(event.id, { startDate, endDate, startTime, endTime, timeMode });
+      if (error) return Alert.alert('保存できませんでした', error);
+      router.back();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -38,7 +59,7 @@ export default function EditEventDateScreen() {
         <Label title="開催時間" hint="開始時刻だけでも登録できます" />
         <TimeRangePicker startTime={startTime} endTime={endTime} timeMode={timeMode} onChange={(value) => { setStartTime(value.startTime); setEndTime(value.endTime); setTimeMode(value.timeMode); }} />
       </ScrollView>
-      <View style={styles.bottom}><TouchableOpacity style={styles.save} onPress={save}><Text style={styles.saveText}>変更を保存</Text></TouchableOpacity></View>
+      <View style={styles.bottom}><TouchableOpacity accessibilityRole="button" disabled={saving || !canEdit} style={[styles.save, (saving || !canEdit) && { opacity: 0.5 }]} onPress={save}><Text style={styles.saveText}>{saving ? '保存中…' : canEdit ? '変更を保存' : '閲覧のみ'}</Text></TouchableOpacity></View>
     </SafeAreaView>
   );
 }

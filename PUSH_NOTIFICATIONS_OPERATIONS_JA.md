@@ -2,7 +2,7 @@
 
 ## 1. 構成
 
-アプリはExpo Push Tokenだけを端末からSupabaseへ登録する。通知本文はPostgreSQL triggerが `notification_outbox` へ書き込み、`dispatch-notifications` Edge FunctionがExpo Push Serviceへ送信する。クライアントへサービスロール鍵、配信用シークレット、他利用者のトークンを渡さない。
+アプリはExpo Push Token、アプリ内で生成するinstallation ID、OS種別を端末からSupabaseへ登録する（FCM/APNsの生トークンをSupabaseへ直接登録する構成ではない）。最終登録時刻もサーバー側で保持する。通知本文はPostgreSQL triggerが `notification_outbox` へ書き込み、`dispatch-notifications` Edge FunctionがExpo Push Serviceへ送信する。クライアントへサービスロール鍵、配信用シークレット、他利用者のトークンを渡さない。
 
 通知対象は次の7種類。
 
@@ -60,7 +60,7 @@ HTTP要求本文は信頼情報として使わず、Edge Functionはサービス
 - Android: Firebase projectにAndroidアプリ`com.shuwa.tsudowa`を登録すること
 - Android: FirebaseのFCM V1 service account keyをEAS Credentialsへ設定すること
 - Android: アプリ登録用`google-services.json`をEAS productionのSecret File変数`GOOGLE_SERVICES_JSON`へ設定すること。FCM V1 service account keyとは別ファイルである
-- `google-services.json`とservice account JSONはリポジトリへcommitしない。本プロジェクトの`app.config.js`はEASのFile変数の一時パスを`android.googleServicesFile`へ渡す
+- `google-services.json`とservice account JSONはリポジトリへcommitしない。Expoが優先して読む`app.config.ts`から、EASのFile変数の一時パスを`android.googleServicesFile`へ渡す。2026-09-11に`.js`だけ対応し`.ts`で値が失われていた不備を修正した。`pnpm check:build-config`で実際のExpo設定解決を検査する。既存ビルドはこの修正で変わらないため、新しいAndroidビルドで反映・受信を確認する
 - Expo GoではAndroidのremote pushを試験しない。SDK 54ではdevelopment buildまたはrelease buildが必要
 
 ## 7. 受入試験
@@ -82,3 +82,7 @@ HTTP要求本文は信頼情報として使わず、Edge Functionはサービス
 13. ログアウト後に前アカウントの通知が届かない
 
 通知本文へメールアドレス、招待コード、支払方法、位置座標などの不要な個人情報を含めない。
+
+## 8. 送信成功と端末への到達を区別する
+
+現行dispatcherはExpoの送信ticketを確認するが、後続のpush receiptを取得する処理はない。`processed_at`は端末表示の証拠ではない。`DeviceNotRegistered`の無効化も現在はticketに返った場合の処理に限られる。試験では受信端末で確認し、将来のreceipt回収・監視を運用改善として検討する。既存ユーザー全員を対象に疎通試験をしない。

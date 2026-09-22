@@ -37,6 +37,7 @@ export default function RootLayout() {
           <Stack.Screen name="event/[id]" options={{ title: 'イベント詳細', headerBackTitle: '戻る' }} />
           <Stack.Screen name="event/[id]/chat" options={{ title: 'グループチャット', headerBackTitle: '詳細' }} />
           <Stack.Screen name="event/[id]/edit-date" options={{ title: '日時を変更', presentation: 'modal' }} />
+          <Stack.Screen name="event/[id]/edit-description" options={{ title: 'イベントについてを編集', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/edit-location" options={{ title: '場所を設定', presentation: 'modal' }} />
           <Stack.Screen name="event/[id]/participants" options={{ title: '参加者一覧', headerBackTitle: '詳細' }} />
           <Stack.Screen name="event/[id]/groupify" options={{ title: 'グループ化', presentation: 'modal' }} />

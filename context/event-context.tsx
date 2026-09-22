@@ -2,7 +2,7 @@ import { validateUserContent } from '@/constants/safety';
 import { legalConfig } from '@/constants/legal';
 import { fetchCloudOnboardingState, fetchCloudProfile, syncOnboardingToCloud, syncProfileToCloud } from '@/lib/cloud-profile';
 import { supabase } from '@/lib/supabase';
-import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudGroupEvent, createCloudGroupFromEvent, createCloudInvite, deleteCloudCollection, deleteCloudEvent, deleteCloudMessage, deleteCloudSchedule, editCloudMessage, fetchCloudEvents, fetchCloudGroups, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, setCloudMessagePinned, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, toggleCloudMessageReaction, updateCloudCollection, updateCloudSchedule } from '@/lib/cloud-events';
+import { archiveCloudEvent, cancelCloudEventLeave, confirmCloudDateCandidate, createCloudEvent, createCloudGroupEvent, createCloudGroupFromEvent, createCloudInvite, deleteCloudCollection, deleteCloudEvent, deleteCloudMessage, deleteCloudSchedule, editCloudMessage, fetchCloudEvents, fetchCloudGroups, joinCloudEvent, previewCloudEventInvite, requestCloudEventLeave, reviewCloudEventLeave, reviewCloudJoinRequest, setCloudMessagePinned, syncCloudAttendance, syncCloudAvailabilityVote, syncCloudChatRead, syncCloudCollection, syncCloudDateCandidate, syncCloudDateTime, syncCloudEventCover, syncCloudLocation, syncCloudMemberRole, syncCloudMessage, syncCloudPayment, syncCloudSchedule, toggleCloudMessageReaction, updateCloudCollection, updateCloudSchedule , syncCloudEventDescription } from '@/lib/cloud-events';
 import { normalizeEventDateRange, parseLocalDateKey, toDateString } from '@/lib/date-values';
 import { buildCollectionShares, collectionSharesTotal } from '@/lib/collection-values';
 import { isEventArchived, isEventPast } from '@/lib/event-display';
@@ -88,7 +88,8 @@ type EventContextValue = {
   deleteMessage: (eventId: string, messageId: string) => Promise<string | null>;
   toggleMessageReaction: (eventId: string, messageId: string, emoji: ChatReactionEmoji) => Promise<string | null>;
   setMessagePinned: (eventId: string, messageId: string, pinned: boolean) => Promise<string | null>;
-  updateEventDateTime: (eventId: string, input: EventDateTimeInput) => void;
+  updateEventDateTime: (eventId: string, input: EventDateTimeInput) => Promise<string | null>;
+  updateEventDescription: (eventId: string, description: string) => Promise<string | null>;
   updateEventLocation: (eventId: string, input: EventLocationInput) => void;
   toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => Promise<string | null>;
   updateProfile: (profile: UserProfile, image?: ChatImageInput) => Promise<string | null>;
@@ -1296,19 +1297,45 @@ export function EventProvider({ children }: PropsWithChildren) {
         return 'ピン留めを更新できませんでした。通信状態を確認してください。';
       }
     },
-    updateEventDateTime: (eventId, input) => {
+    updateEventDateTime: async (eventId, input) => {
       const target = events.find((event) => event.id === eventId);
-      if (!target || isEventArchived(target)) return;
+      if (!target) return 'イベントが見つかりません。';
+      if (!isEventManager(target, user?.id, profile.name)) return '主催者・共同主催者のみ変更できます。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
       const normalizedDates = normalizeEventDateRange(input.startDate, input.endDate);
-      const normalizedInput = { ...input, ...normalizedDates };
+      const normalizedInput = { ...input, ...normalizedDates, endTime: input.timeMode === 'range' ? input.endTime : undefined };
+      const validTime = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+      if (!validTime.test(input.startTime) || (input.timeMode === 'range' && (!input.endTime || !validTime.test(input.endTime)))) return '開始・終了時刻を確認してください。';
+      if (input.timeMode === 'range' && normalizedInput.startDate === normalizedInput.endDate && input.endTime! <= input.startTime) return '終了時刻は開始時刻より後にしてください。';
+      try {
+        await syncCloudDateTime(eventId, normalizedInput);
+      } catch {
+        return '日時を保存できませんでした。通信状態や編集権限を確認して、もう一度保存してください。';
+      }
       setEvents((current) => current.map((event) => event.id !== eventId ? event : {
         ...event,
         ...normalizedInput,
         dateLabel: formatDateLabel(normalizedInput.startDate, normalizedInput.endDate),
         timeLabel: formatEventTimeLabel(normalizedInput.startTime, normalizedInput.endTime, normalizedInput.timeMode),
         dateStatus: 'scheduled',
+        status: '予定',
       }));
-      void syncCloudDateTime(eventId, normalizedInput);
+      return null;
+    },
+    updateEventDescription: async (eventId, description) => {
+      const target = events.find((event) => event.id === eventId);
+      if (!target) return 'イベントが見つかりません。';
+      if (!isEventManager(target, user?.id, profile.name)) return '主催者・共同主催者のみ変更できます。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
+      const nextDescription = description.trim();
+      if (Array.from(nextDescription).length > 5000) return 'イベントの説明は5,000文字以内で入力してください。';
+      try {
+        await syncCloudEventDescription(eventId, nextDescription);
+      } catch {
+        return '説明を保存できませんでした。通信状態や編集権限、入力内容を確認してください。';
+      }
+      setEvents((current) => current.map((event) => event.id === eventId ? { ...event, description: nextDescription } : event));
+      return null;
     },
     updateEventLocation: (eventId, input) => {
       const target = events.find((event) => event.id === eventId);

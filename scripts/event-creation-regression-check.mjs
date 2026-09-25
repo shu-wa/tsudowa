@@ -26,8 +26,9 @@ assert.doesNotMatch(context, /void createCloudEvent\(event\)/, 'cloud event erro
 assert.match(context, /Promise\.allSettled\(relatedWrites\)/, 'non-core event details must report partial failures');
 assert.match(context, /return \{ error: eventCreationErrorMessage\(error\) \}/, 'core persistence failures must reach the screen');
 assert.match(createScreen, /const result = await addEvent/, 'the create screen must wait for persistence');
-assert.match(createScreen, /disabled=\{submitting\}/, 'duplicate event submissions must be blocked');
-assert.match(createScreen, /finally \{\s*setSubmitting\(false\)/, 'the submitting state must recover from unexpected failures');
+assert.match(createScreen, /disabled=\{submitting \|\| locationLoading\}/, 'submissions must wait for pending location selection');
+assert.match(createScreen, /if \(submittingRef.current \|\| locationLoading\) return/, 'duplicate taps must be blocked before the next render');
+assert.match(createScreen, /finally \{\s*submittingRef.current = false;\s*setSubmitting\(false\)/, 'the submitting state must recover from unexpected failures');
 assert.match(createScreen, /イベントを作成できませんでした/, 'users must receive a visible persistence error');
 assert.match(cloudEvents, /if \(authError \|\| !userId\) throw new Error\('not_authenticated'\)/, 'missing sessions must fail explicitly');
 

@@ -90,7 +90,7 @@ type EventContextValue = {
   setMessagePinned: (eventId: string, messageId: string, pinned: boolean) => Promise<string | null>;
   updateEventDateTime: (eventId: string, input: EventDateTimeInput) => Promise<string | null>;
   updateEventDescription: (eventId: string, description: string) => Promise<string | null>;
-  updateEventLocation: (eventId: string, input: EventLocationInput) => void;
+  updateEventLocation: (eventId: string, input: EventLocationInput) => Promise<string | null>;
   toggleCollectionPayment: (eventId: string, collectionId: string, participantId: string) => Promise<string | null>;
   updateProfile: (profile: UserProfile, image?: ChatImageInput) => Promise<string | null>;
   updateEventCover: (eventId: string, image: ChatImageInput) => Promise<string | null>;
@@ -1337,11 +1337,25 @@ export function EventProvider({ children }: PropsWithChildren) {
       setEvents((current) => current.map((event) => event.id === eventId ? { ...event, description: nextDescription } : event));
       return null;
     },
-    updateEventLocation: (eventId, input) => {
+    updateEventLocation: async (eventId, input) => {
       const target = events.find((event) => event.id === eventId);
-      if (!target || isEventArchived(target)) return;
-      setEvents((current) => current.map((event) => event.id === eventId ? { ...event, ...input } : event));
-      void syncCloudLocation(eventId, input);
+      if (!target) return 'イベントが見つかりません。';
+      if (!isEventManager(target, user?.id, profile.name)) return '主催者・共同主催者のみ変更できます。';
+      if (isEventArchived(target)) return 'アーカイブ済みのイベントは変更できません。';
+      const normalizedInput = { ...input, location: input.location.trim(), address: input.address.trim() };
+      if (!normalizedInput.location) return '場所の表示名を入力してください。';
+      const hasCoordinates = input.latitude !== undefined || input.longitude !== undefined;
+      if (hasCoordinates && (
+        typeof input.latitude !== 'number' || !Number.isFinite(input.latitude) || Math.abs(input.latitude) > 90
+        || typeof input.longitude !== 'number' || !Number.isFinite(input.longitude) || Math.abs(input.longitude) > 180
+      )) return '地図の位置を確認してください。';
+      try {
+        await syncCloudLocation(eventId, normalizedInput);
+      } catch {
+        return '場所を保存できませんでした。通信状態や編集権限を確認して、もう一度保存してください。';
+      }
+      setEvents((current) => current.map((event) => event.id === eventId ? { ...event, ...normalizedInput } : event));
+      return null;
     },
     addScheduleItem: async (eventId, input) => {
       const scheduleId = Crypto.randomUUID();

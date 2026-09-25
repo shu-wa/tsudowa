@@ -11,7 +11,7 @@ import { ChatImageInput, EventTimeMode } from '@/types/event';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +38,13 @@ export default function CreateEventScreen() {
   const [initialFee, setInitialFee] = useState('');
   const [coverImage, setCoverImage] = useState<ChatImageInput>();
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const lookupVersion = useRef(0);
+  useEffect(() => () => { lookupVersion.current += 1; }, []);
+  const invalidateLookup = () => {
+    lookupVersion.current += 1;
+    setLocationLoading(false);
+  };
   const mapSelectionHint = Platform.OS === 'web'
     ? '場所名の直接入力、現在地、地図プレビューに対応'
     : '施設名・住所検索、現在地、地図タップに対応';
@@ -46,7 +53,7 @@ export default function CreateEventScreen() {
     : '検索・現在地・地図タップで場所を選択';
 
   const submit = async () => {
-    if (submitting) return;
+    if (submittingRef.current || locationLoading) return;
     if (!title.trim()) {
       Alert.alert('イベント名を入力してください');
       return;
@@ -55,6 +62,8 @@ export default function CreateEventScreen() {
       Alert.alert('終了時刻を確認してください', '同じ日の場合、終了時刻は開始時刻より後にしてください。');
       return;
     }
+    invalidateLookup();
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await addEvent({ title: title.trim(), startDate, endDate, startTime, endTime, timeMode, location, address, latitude: hasSelectedCoordinates ? latitude : undefined, longitude: hasSelectedCoordinates ? longitude : undefined, description, initialFee: Number(initialFee) || 0, coverImage });
@@ -74,6 +83,7 @@ export default function CreateEventScreen() {
     } catch {
       Alert.alert('イベントを作成できませんでした', '予期しないエラーが発生しました。通信状態を確認して、もう一度お試しください。');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -103,48 +113,65 @@ export default function CreateEventScreen() {
     ? [value.region, value.city, value.district, value.street, value.streetNumber].filter((part, index, values) => part && values.indexOf(part) === index).join('')
     : '';
 
-  const selectLocation = async (nextLatitude: number, nextLongitude: number) => {
+  const selectLocation = async (nextLatitude: number, nextLongitude: number, version = ++lookupVersion.current, label = '設定した場所') => {
+    if (submittingRef.current || version !== lookupVersion.current) return;
     setLatitude(nextLatitude);
     setLongitude(nextLongitude);
     setHasSelectedCoordinates(true);
+    setLocation(label); setAddress(''); setLocationQuery('');
+    setLocationLoading(true);
     try {
       const result = await Location.reverseGeocodeAsync({ latitude: nextLatitude, longitude: nextLongitude });
+      if (version !== lookupVersion.current) return;
       const nextAddress = addressLabel(result[0]);
       const nextName = result[0]?.name || nextAddress;
       if (nextAddress) { setAddress(nextAddress); setLocationQuery(nextAddress); }
       if (nextName) setLocation(nextName);
     } catch { /* 地図上の座標はそのまま利用できる */ }
+    finally { if (version === lookupVersion.current) setLocationLoading(false); }
   };
 
   const searchLocation = async () => {
+    if (submittingRef.current) return;
     const query = locationQuery.trim() || location.trim();
     if (!query) return Alert.alert('検索する場所を入力してください');
+    const version = ++lookupVersion.current;
     Keyboard.dismiss();
     setLocationLoading(true);
     try {
+      if (Platform.OS === 'android') {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (version !== lookupVersion.current) return;
+        if (!permission.granted) return Alert.alert('位置情報の許可が必要です', '検索するには位置情報を許可してください。場所は手入力でも設定できます。');
+      }
       const result = await Location.geocodeAsync(query);
+      if (version !== lookupVersion.current) return;
       if (!result[0]) return Alert.alert('場所が見つかりません', '施設名や住所を変えて検索してください。');
-      setLocation(query);
-      setAddress(query);
-      await selectLocation(result[0].latitude, result[0].longitude);
+      await selectLocation(result[0].latitude, result[0].longitude, version, query);
     } catch {
-      Alert.alert('場所を検索できませんでした', Platform.OS === 'web'
+      if (version === lookupVersion.current) Alert.alert('場所を検索できませんでした', Platform.OS === 'web'
         ? '通信状態を確認するか、場所を直接入力してください。'
         : '通信状態を確認するか、地図上で場所を選択してください。');
-    } finally { setLocationLoading(false); }
+    } finally { if (version === lookupVersion.current) setLocationLoading(false); }
   };
 
   const useCurrentLocation = async () => {
+    if (submittingRef.current) return;
+    const version = ++lookupVersion.current;
     Keyboard.dismiss();
     setLocationLoading(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
+      if (version !== lookupVersion.current) return;
       if (!permission.granted) return Alert.alert('位置情報の許可が必要です', Platform.OS === 'web'
         ? '場所は検索または直接入力でも設定できます。'
         : '場所は検索または地図タップでも設定できます。');
       const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      await selectLocation(current.coords.latitude, current.coords.longitude);
-    } catch { Alert.alert('現在地を取得できませんでした'); } finally { setLocationLoading(false); }
+      if (version !== lookupVersion.current) return;
+      await selectLocation(current.coords.latitude, current.coords.longitude, version);
+    } catch {
+      if (version === lookupVersion.current) Alert.alert('現在地を取得できませんでした');
+    } finally { if (version === lookupVersion.current) setLocationLoading(false); }
   };
 
   return (
@@ -169,13 +196,13 @@ export default function CreateEventScreen() {
           <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>開催時間</Text><Text style={styles.sectionHint}>開始時刻のみでも登録できます</Text></View><Text style={styles.selection}>{formatEventTimeLabel(startTime, endTime, timeMode)}</Text></View>
           <TimeRangePicker startTime={startTime} endTime={endTime} timeMode={timeMode} onChange={(value) => { setStartTime(value.startTime); setEndTime(value.endTime); setTimeMode(value.timeMode); }} />
           <View style={styles.fieldGap} />
-          <FormField label="場所" icon="location-outline" placeholder="会場名、住所、集合場所など" value={location} onChangeText={(value) => { setLocation(value); if (!mapOpen) setLocationQuery(value); }} />
+          <FormField label="場所" icon="location-outline" placeholder="会場名、住所、集合場所など" value={location} editable={!submitting} onChangeText={(value) => { invalidateLookup(); setLocation(value); setAddress(''); setHasSelectedCoordinates(false); setLocationQuery(value); }} />
           <TouchableOpacity style={styles.mapToggle} onPress={() => { setMapOpen((current) => !current); setLocationQuery((current) => current || location); }}><View style={styles.mapToggleIcon}><Ionicons name="map-outline" size={19} color={palette.primary} /></View><View style={styles.mapToggleCopy}><Text style={styles.mapToggleTitle}>{mapOpen ? '地図を閉じる' : '地図から場所を設定'}</Text><Text style={styles.mapToggleText}>{mapSelectionHint}</Text></View><Ionicons name={mapOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.muted} /></TouchableOpacity>
           {mapOpen ? <View style={styles.mapPanel}>
             {Platform.OS === 'web'
               ? <View style={styles.webMapNotice}><Ionicons name="information-circle-outline" size={18} color={palette.primary} /><Text style={styles.webMapNoticeText}>会場名や住所は上の「場所」欄へ入力してください。地図は現在地を選ぶと移動します。</Text></View>
-              : <View style={styles.mapSearch}><Ionicons name="search" size={18} color={palette.muted} /><TextInput style={styles.mapSearchInput} value={locationQuery} onChangeText={setLocationQuery} placeholder="施設名・駅名・住所で検索" placeholderTextColor="#9AA39E" returnKeyType="search" onSubmitEditing={searchLocation} /><TouchableOpacity style={styles.mapSearchButton} onPress={searchLocation}>{locationLoading ? <ActivityIndicator size="small" color={palette.surface} /> : <Text style={styles.mapSearchButtonText}>検索</Text>}</TouchableOpacity></View>}
-            <TouchableOpacity style={styles.currentLocation} onPress={useCurrentLocation}><Ionicons name="navigate" size={16} color={palette.primary} /><Text style={styles.currentLocationText}>現在地へ移動</Text></TouchableOpacity>
+              : <View style={styles.mapSearch}><Ionicons name="search" size={18} color={palette.muted} /><TextInput style={styles.mapSearchInput} value={locationQuery} editable={!submitting} onChangeText={(value) => { invalidateLookup(); setLocationQuery(value); }} placeholder="施設名・駅名・住所で検索" placeholderTextColor="#9AA39E" returnKeyType="search" onSubmitEditing={searchLocation} /><TouchableOpacity disabled={submitting || locationLoading} style={styles.mapSearchButton} onPress={searchLocation}>{locationLoading ? <ActivityIndicator size="small" color={palette.surface} /> : <Text style={styles.mapSearchButtonText}>検索</Text>}</TouchableOpacity></View>}
+            <TouchableOpacity disabled={submitting || locationLoading} style={styles.currentLocation} onPress={useCurrentLocation}><Ionicons name="navigate" size={16} color={palette.primary} /><Text style={styles.currentLocationText}>現在地へ移動</Text></TouchableOpacity>
             <View style={styles.map}><LocationMap latitude={latitude} longitude={longitude} onSelect={selectLocation} /></View>
             <View style={styles.selectedPlace}><Ionicons name="location" size={18} color={palette.accent} /><View style={styles.selectedCopy}><Text style={styles.selectedName}>{hasSelectedCoordinates ? location || '設定した場所' : mapSelectionEmpty}</Text><Text style={styles.selectedAddress}>{hasSelectedCoordinates ? address || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}` : '初期表示：東京駅周辺'}</Text></View></View>
           </View> : null}
@@ -189,7 +216,7 @@ export default function CreateEventScreen() {
         </ScrollView>
         <View style={styles.bottom}>
           <KeyboardDismissBar />
-          <TouchableOpacity style={[styles.submit, submitting && styles.submitDisabled]} onPress={submit} activeOpacity={0.85} disabled={submitting}>{submitting ? <ActivityIndicator size="small" color={palette.surface} /> : <><Text style={styles.submitText}>イベントを作成する</Text><Ionicons name="arrow-forward" size={19} color={palette.surface} /></>}</TouchableOpacity>
+          <TouchableOpacity style={[styles.submit, (submitting || locationLoading) && styles.submitDisabled]} onPress={submit} activeOpacity={0.85} disabled={submitting || locationLoading}>{submitting ? <ActivityIndicator size="small" color={palette.surface} /> : <><Text style={styles.submitText}>イベントを作成する</Text><Ionicons name="arrow-forward" size={19} color={palette.surface} /></>}</TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

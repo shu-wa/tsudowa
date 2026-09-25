@@ -1,9 +1,9 @@
 # TSUDOWA 統合システム設計書
 
-文書版: 1.3
-基準日: 2026-08-28
+文書版: 1.4
+基準日: 2026-09-25（場所保存修正までのローカルソース。配布状態は別記）
 対象アプリ版: 1.0.0
-対象ソース: 2026-08-28のリリース候補（継続グループ・強化チャット・通知基盤を含む）
+対象ソース: `3ca8446`および2026-09-25の未配布の場所保存修正（継続グループ・強化チャット・通知基盤を含む）
 正式名称: TSUDOWA（ツドワ）
 提供予定地域: 日本
 運営者: 玉木 秀杷（タマキ シュウワ）
@@ -99,7 +99,7 @@ Bundle ID / Android package: `com.shuwa.tsudowa`
 
 | 項目 | 採用技術・バージョン |
 |---|---|
-| フレームワーク | Expo SDK `~54.0.35` |
+| フレームワーク | Expo SDK `~54.0.37` |
 | UIランタイム | React Native `0.81.5`、React `19.1.0` |
 | 言語 | TypeScript `~5.9.2` |
 | ルーティング | Expo Router `~6.0.24` |
@@ -107,7 +107,7 @@ Bundle ID / Android package: `com.shuwa.tsudowa`
 | 日付・時刻 | `@react-native-community/datetimepicker` `8.4.4` |
 | 地図 | `react-native-maps` `1.20.1`、WebはOpenStreetMap iframe |
 | 画像 | Expo Image Picker、Expo Image |
-| 通知 | Expo Notifications（端末内通知） |
+| 通知 | Expo Notifications（端末内通知・リモート通知）、サーバーoutbox |
 | カメラ | Expo Camera（QRコード） |
 | 位置情報 | Expo Location |
 | 端末カレンダー | Expo Calendar |
@@ -258,6 +258,8 @@ QRコードは任意文字列またはURLの `code` クエリを取り出し、�
 
 - `/event/[id]/edit-date`: 作成画面と同じ範囲カレンダー、時間選択、同日終了時刻検証
 - `/event/[id]/edit-location`: 施設名・住所検索、現在地、地図タップ、ドラッグ可能なピン、表示名編集
+
+日時・説明・場所は管理者・アーカイブ状態をContextでも検証し、保存応答を待ってから表示を確定する。更新行を1件取得し、更新0件を成功にしない。失敗時は画面と入力を保持する。場所編集はイベント取得後にフォームを初期化し、未設定の座標へ地図初期表示の東京駅を保存しない。検索・逆ジオコーディングは古い応答を無視し、作成時も同様に処理する。Androidの検索時は必要なforeground権限を確認する。
 
 iOSはApple Maps、AndroidはGoogle Mapsを使用する。AndroidのAPIキーはアプリID `com.shuwa.tsudowa` と本番SHA-1へ制限する。WebはOpenStreetMap iframeでプレビューし、地図上の直接選択ではなく入力・現在地を中心とする。
 
@@ -576,7 +578,7 @@ iOSはApple Maps、AndroidはGoogle Mapsを使用する。AndroidのAPIキーは
 - 変更通知を受けると、RLS下でイベント集約を再取得する。
 - `RefreshableScrollView`を使う縦スクロール画面はpull-to-refreshでプロフィールとイベントを再取得する。
 - 作成・編集の多くは楽観更新し、通信失敗時に直前状態へrollbackする。
-- 日時・場所更新は現在fire-and-forgetで、失敗時UI通知・rollbackがない。公開前に改善対象とする。
+- 日時・説明・場所更新は保存成功後に状態を反映し、失敗時は入力を保持する。日時・説明は9/22配布記録の対象、場所は9/25のローカル修正で未配布。
 
 ## 15. 日付・時刻UIのプラットフォーム仕様
 
@@ -631,7 +633,7 @@ iOS 26.5.2ではspinner文字が背景と同化する事例があるため、`th
 ## 17. 法務・プライバシー仕様
 
 - 必須同意: 利用規約、プライバシーポリシー、コミュニティガイドライン。
-- 文書版: terms `2026-07-26.2`、privacy `2026-08-28.1`、community `2026-07-26`。
+- 文書版: terms `2026-07-26.2`、privacy `2026-09-11.1`、community `2026-07-26`。公開サイトへの反映確認は配布記録で別管理する。
 - 生年月日は年齢確認にのみ使い、プロフィールへ公開しない。
 - 取得情報、目的、委託先、国外処理、保存期間、権利、16歳制限をポリシーへ記載する。
 - カメラ、写真、位置、カレンダー、通知は該当操作時だけ要求する。
@@ -885,9 +887,9 @@ A=主催者、B=共同主催者/参加者、C=未参加者で確認する。
 
 ### 27.1 リリース前に修正または判断が必要
 
-1. 最新ストア成果物はiOS build 11 / Android build 8で、今回のcommitを未収録。APNs/FCM設定後にiOS build 12 / Android build 9以降を作り、iOS 26.5.2時間spinnerを含めて実機確認する。
-2. イベント詳細から日時・場所編集への導線が全参加者に表示され、Contextもクライアント側manager検証をしていない。DB RLSは不正更新を拒否するが、一時的に端末表示だけ変わる可能性がある。UIとContextにもmanager check、await、rollbackを追加する。
-3. プッシュ通知のDB migration、Edge Function、即時trigger、cron、共有シークレットは本番反映済み。iOS APNs Push Key、Android FCM V1 service account key、`google-services.json`、新しい実機buildでの受信試験が残る。
+1. 9/22記録の成果物はiOS build 15 / Android build 12。9/25の場所修正はローカルのみで未収録。正式公開・最新の端末試験結果は `RELEASE_DELIVERY_2026-09-22_JA.md` と後続記録を確認する。
+2. 日時・説明・場所はmanager checkとawait、失敗時の入力保持を実装済み。通常参加者が詳細から開いた場合は保存を許可しない。場所修正の追加DB試験6項目はDocker起動障害により9/25時点で未実行。アプリ側回帰とDB試験を混同しない。
+3. プッシュ通知のDB migration、Edge Function、即時trigger、cronは配備記録あり。Android build 12のFirebaseリソース確認済みという記録があるが、最新実機での通知受信試験とpush receipt回収・監視が残る。
 4. 自動RLS統合テスト、負荷試験、バックアップ復元試験、第三者脆弱性診断は運用上まだ必要。
 5. 空の隔離DBへ全migrationを適用し、チャット・プロフィールID・継続グループ・通知のpgTAP 77件が合格、schema lintは0件。本番匿名API拒否と2アカウント結合試験も合格。グループ化RPCは本番で作成・参加者表示まで確認し、試験データは削除済み。複数実機でのPresence/Broadcast、画像送受信、通知受信だけは端末試験が必要。
 6. Realtime Settingsでpublic channelを無効化し、private channel強制後もチャットPresence/Broadcastが参加者だけに届くことを実機確認する。

@@ -518,7 +518,13 @@ export async function syncCloudEventDescription(eventId: string, description: st
 
 export async function syncCloudLocation(eventId: string, input: EventLocationInput) {
   if (!supabase || !isCloudId(eventId)) return;
-  await supabase.from('events').update({ location_name: input.location, address: input.address, latitude: input.latitude, longitude: input.longitude }).eq('id', eventId);
+  const { error } = await supabase.from('events').update({
+    location_name: input.location,
+    address: input.address,
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
+  }).eq('id', eventId).select('id').single();
+  if (error) throw error;
 }
 
 export async function syncCloudSchedule(event: EventItem, scheduleId: string, input: NewScheduleInput) {

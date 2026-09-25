@@ -53,6 +53,9 @@ jobs:
       - name: Check resolved Expo build configuration
         run: pnpm check:build-config
 
+      - name: Check Pages asset packaging
+        run: node scripts/pages-regression-check.mjs
+
       - name: Check Expo dependencies
         run: pnpm exec expo-doctor
 
